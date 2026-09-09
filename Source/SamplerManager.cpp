@@ -86,7 +86,7 @@ void RTGL1::SamplerManager::CreateAllSamplers(uint32_t _anisotropy, float _mipLo
     VkSamplerCreateInfo info = {};
     info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
     info.mipLodBias = _mipLodBias;
     info.anisotropyEnable = _anisotropy > 0 ? VK_TRUE : VK_FALSE;
     info.maxAnisotropy = _anisotropy;
