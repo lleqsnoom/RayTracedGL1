@@ -129,7 +129,7 @@ private:
         BLASComponent &as,
         const std::shared_ptr<VertexCollector> &vertCollector);
 
-    void UpdateBLAS(
+    bool UpdateBLAS(
         BLASComponent &as,
         const std::shared_ptr<VertexCollector> &vertCollector);
 

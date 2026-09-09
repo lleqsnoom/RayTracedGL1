@@ -485,12 +485,12 @@ bool ASManager::SetupBLAS(BLASComponent &blas, const std::shared_ptr<VertexColle
     asBuilder->AddBLAS(blas.GetAS(), geoms.size(),
                        geoms.data(), ranges.data(),
                        buildSizes,
-                       fastTrace, update, blas.GetFilter() & VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE);
+                       fastTrace, update, blas.GetFilter() & (VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE | VertexCollectorFilterTypeFlagBits::CF_DYNAMIC));
 
     return true;
 }
 
-void ASManager::UpdateBLAS(BLASComponent &blas, const std::shared_ptr<VertexCollector> &vertCollector)
+bool ASManager::UpdateBLAS(BLASComponent &blas, const std::shared_ptr<VertexCollector> &vertCollector)
 {
     auto filter = blas.GetFilter();
     const std::vector<VkAccelerationStructureGeometryKHR> &geoms = vertCollector->GetASGeometries(filter);
@@ -499,7 +499,7 @@ void ASManager::UpdateBLAS(BLASComponent &blas, const std::shared_ptr<VertexColl
 
     if (blas.IsEmpty())
     {
-        return;
+        return false;
     }
 
     const std::vector<VkAccelerationStructureBuildRangeInfoKHR> &ranges = vertCollector->GetASBuildRangeInfos(filter);
@@ -513,14 +513,20 @@ void ASManager::UpdateBLAS(BLASComponent &blas, const std::shared_ptr<VertexColl
     const auto buildSizes = asBuilder->GetBottomBuildSizes(
         geoms.size(), geoms.data(), primCounts.data(), fastTrace);
 
-    assert(blas.IsValid(buildSizes));
+    if (!blas.IsValid(buildSizes))
+    {
+        return false;
+    }
+
     assert(blas.GetAS() != VK_NULL_HANDLE);
 
     // add BLAS, all passed arrays must be alive until BuildBottomLevel() call
     asBuilder->AddBLAS(blas.GetAS(), geoms.size(),
                        geoms.data(), ranges.data(),
                        buildSizes,
-                       fastTrace, update, blas.GetFilter() & VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE);
+                       fastTrace, update, blas.GetFilter() & (VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE | VertexCollectorFilterTypeFlagBits::CF_DYNAMIC));
+
+    return true;
 }
 
 // separate functions to make adding between Begin..Geometry() and Submit..Geometry() a bit clearer
@@ -669,13 +675,24 @@ void ASManager::SubmitDynamicGeometry(VkCommandBuffer cmd, uint32_t frameIndex)
 
     bool toBuild = false;
 
-    // recreate dynamic blas
+    // refit dynamic BLAS when topology is unchanged, else rebuild
     for (auto &dynamicBlas : allDynamicBlas[frameIndex])
     {
         // must be dynamic
         assert(dynamicBlas->GetFilter() & FT::CF_DYNAMIC);
 
-        toBuild |= SetupBLAS(*dynamicBlas, colDyn);
+        const uint32_t newGeomCount = (uint32_t)colDyn->GetASGeometries(dynamicBlas->GetFilter()).size();
+
+        // Doom dynamic geometry (billboards, moving sectors) keeps constant
+        // primitive counts, so equal geometry count means refit is valid.
+        if (newGeomCount > 0 && dynamicBlas->GetGeomCount() == newGeomCount && UpdateBLAS(*dynamicBlas, colDyn))
+        {
+            toBuild = true;
+        }
+        else
+        {
+            toBuild |= SetupBLAS(*dynamicBlas, colDyn);
+        }
     }
     
     if (!toBuild)
