@@ -34,7 +34,7 @@ static_assert(TEXTURES_PER_MATERIAL_COUNT == sizeof(RgTextureSet) / sizeof(RgTex
 
 constexpr MaterialTextures EmptyMaterialTextures = { EMPTY_TEXTURE_INDEX, EMPTY_TEXTURE_INDEX,EMPTY_TEXTURE_INDEX };
 
-constexpr RgSamplerFilter DefaultDynamicSamplerFilter = RG_SAMPLER_FILTER_LINEAR;
+constexpr RgSamplerFilter DefaultDynamicSamplerFilter = RG_SAMPLER_FILTER_NEAREST;
 
 
 TextureManager::TextureManager(
