@@ -221,6 +221,7 @@ void Swapchain::Present(const std::shared_ptr<Queues> &queues, VkSemaphore rende
 
     VkResult r = vkQueuePresentKHR(queues->GetGraphics(), &presentInfo);
 
+
     if (r == VK_ERROR_OUT_OF_DATE_KHR || r == VK_SUBOPTIMAL_KHR)
     {
         TryRecreate(requestedExtent.width, requestedExtent.height, requestedVsync);

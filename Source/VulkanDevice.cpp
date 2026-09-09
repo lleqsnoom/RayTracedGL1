@@ -94,7 +94,7 @@ VulkanDevice::VulkanDevice(const RgInstanceCreateInfo *info) :
     swapchain           = std::make_shared<Swapchain>(device, surface, physDevice, cmdManager);
 
     // for world samplers with modifyable lod biad
-    worldSamplerManager     = std::make_shared<SamplerManager>(device, 8, info->textureSamplerForceMinificationFilterLinear);
+    worldSamplerManager     = std::make_shared<SamplerManager>(device, 0, info->textureSamplerForceMinificationFilterLinear);
     genericSamplerManager   = std::make_shared<SamplerManager>(device, 0, info->textureSamplerForceMinificationFilterLinear);
 
     framebuffers        = std::make_shared<Framebuffers>(
@@ -1547,7 +1547,7 @@ void VulkanDevice::CreateDevice()
     features.shaderTessellationAndGeometryPointSize = 1;
     features.shaderImageGatherExtended = 1;
     features.shaderStorageImageExtendedFormats = 1;
-    features.shaderStorageImageMultisample = 1;
+    features.shaderStorageImageMultisample = 0;
     features.shaderStorageImageReadWithoutFormat = 1;
     features.shaderStorageImageWriteWithoutFormat = 1;
     features.shaderUniformBufferArrayDynamicIndexing = 1;
@@ -1556,7 +1556,7 @@ void VulkanDevice::CreateDevice()
     features.shaderStorageImageArrayDynamicIndexing = 1;
     features.shaderClipDistance = 1;
     features.shaderCullDistance = 1;
-    features.shaderFloat64 = 1;
+    features.shaderFloat64 = 0;
     features.shaderInt64 = 1;
     features.shaderInt16 = 1;
     features.shaderResourceResidency = 1;
@@ -1580,7 +1580,7 @@ void VulkanDevice::CreateDevice()
     vulkan12Features.shaderSampledImageArrayNonUniformIndexing = 1;
     vulkan12Features.shaderStorageBufferArrayNonUniformIndexing = 1;
     vulkan12Features.bufferDeviceAddress = 1;
-    vulkan12Features.shaderFloat16 = 1;
+    vulkan12Features.shaderFloat16 = 0;
     vulkan12Features.drawIndirectCount = 1;
 
     VkPhysicalDeviceMultiviewFeatures multiviewFeatures = {};
@@ -1591,7 +1591,7 @@ void VulkanDevice::CreateDevice()
     VkPhysicalDevice16BitStorageFeatures storage16 = {};
     storage16.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_16BIT_STORAGE_FEATURES;
     storage16.pNext = &multiviewFeatures;
-    storage16.storageBuffer16BitAccess = 1;
+    storage16.storageBuffer16BitAccess = 0;
 
     VkPhysicalDeviceSynchronization2FeaturesKHR sync2Features = {};
     sync2Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES_KHR;
@@ -1629,7 +1629,6 @@ void VulkanDevice::CreateDevice()
         VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
         VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
         VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
-        VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME,
     };
 
     for (const char *n : DLSS::GetDlssVulkanDeviceExtensions())
