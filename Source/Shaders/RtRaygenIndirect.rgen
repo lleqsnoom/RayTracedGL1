@@ -154,20 +154,26 @@ vec3 processBounce(
         rayHitDistance = length(h.hitPosition - surfPosition);
 
 
-        vec3 bounceDir_Second;
-        vec3 throughput_Second = vec3(1.0);
-        getDiffuseBounce(seed, h.normal, bounceDir_Second, throughput_Second);
-        //bounceDir_Second = h.normal; throughput_Second = vec3(M_PI);
+        // bounce_quality 1 maps to maxBounceShadowsSphereLights == 1: skip the
+        // second bounce so indirect lighting costs a single ray instead of two
+        if (globalUniform.maxBounceShadowsSphereLights >= 2)
+        {
+            vec3 bounceDir_Second;
+            vec3 throughput_Second = vec3(1.0);
+            getDiffuseBounce(seed, h.normal, bounceDir_Second, throughput_Second);
+            //bounceDir_Second = h.normal; throughput_Second = vec3(M_PI);
 
-        vec3 contrib_Second = processSecondBounce(
-            seed, 
-            h.instCustomIndex, h.hitPosition, h.normal, h.normalGeom, h.roughness, 
-            -bounceDir_First, isGradientSample,
-            bounceDir_Second,
-            throughput_Second);
+            vec3 contrib_Second = processSecondBounce(
+                seed, 
+                h.instCustomIndex, h.hitPosition, h.normal, h.normalGeom, h.roughness, 
+                -bounceDir_First, isGradientSample,
+                bounceDir_Second,
+                throughput_Second);
 
+            return h.emission * h.albedo + (diffuse + contrib_Second) * throughput_First;
+        }
 
-        return h.emission * h.albedo + (diffuse + contrib_Second) * throughput_First;
+        return h.emission * h.albedo + diffuse * throughput_First;
     }
     else
     {
