@@ -941,7 +941,10 @@ void processDirectIllumination(
 #endif
 
 
-#define SEPARATE_SHADOW_RAYS
+// When enabled, each light type casts its own shadow ray per pixel (up to 4 per
+// pixel). When disabled, one light type is picked stochastically per pixel and
+// temporal accumulation smooths the noise.
+// #define SEPARATE_SHADOW_RAYS
 #ifdef SEPARATE_SHADOW_RAYS
     
     LightResult selected;
