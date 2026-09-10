@@ -234,6 +234,8 @@ void atrous0(
 	normalWeightSpec *= normalWeightScale;
 
     const float gradDepth = center.gradDepth;
+    // center normal is shared by every tap, so decode it once
+    const vec3 centerNormal = decodeNormal(center.encNormal);
 
 
     float weightSum = 1.0;
@@ -257,7 +259,7 @@ void atrous0(
 
 
             const float l_q = getLuminance(other.directDiffuseColor);
-            const float n_n = max(0.0, dotEnc(center.encNormal, other.encNormal));
+            const float n_n = max(0.0, dot(centerNormal, decodeNormal(other.encNormal)));
 
             const float w_z = abs(center.depth - other.depth) / max(gradDepth * (abs(xx) + abs(yy)), 0.01);
             float n_n_2 = n_n * n_n;
