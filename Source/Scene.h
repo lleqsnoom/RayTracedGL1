@@ -115,7 +115,7 @@ private:
     // Dynamic indices are cleared every frame
     rgl::unordered_set< uint64_t >    dynamicUniqueIDs;
     rgl::unordered_set< uint64_t >    staticUniqueIDs;
-    rgl::unordered_set< std::string > staticMeshNames;
+    rgl::string_set staticMeshNames;
     std::vector< GenericLight >       staticLights;
 
     StaticGeometryToken  makingStatic{};
