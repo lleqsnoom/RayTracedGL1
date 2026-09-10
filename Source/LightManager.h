@@ -91,12 +91,10 @@ private:
     VkDevice device;
 
     std::shared_ptr< AutoBuffer > lightsBuffer;
-    Buffer                        lightsBuffer_Prev;
     Buffer                        initialLightsGrid[ MAX_FRAMES_IN_FLIGHT ];
 
     // Match light indices between current and previous frames
     std::shared_ptr< AutoBuffer > prevToCurIndex;
-    std::shared_ptr< AutoBuffer > curToPrevIndex;
 
     rgl::unordered_map< UniqueLightID, LightArrayIndex >
         uniqueIDToArrayIndex[ MAX_FRAMES_IN_FLIGHT ];
