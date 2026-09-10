@@ -29,6 +29,19 @@
 
 using namespace RTGL1;
 
+namespace
+{
+uint64_t HashPrimitiveCounts(uint32_t geomCount, const std::vector<uint32_t> &primCounts)
+{
+    uint64_t h = 0xcbf29ce484222325ull ^ (uint64_t)geomCount;
+    for (uint32_t c : primCounts)
+    {
+        h = (h ^ (uint64_t)c) * 0x100000001b3ull;
+    }
+    return h;
+}
+}
+
 ASManager::ASManager(
     VkDevice _device,
     std::shared_ptr<PhysicalDevice> physDevice,
@@ -473,8 +486,19 @@ bool ASManager::SetupBLAS(BLASComponent &blas, const std::shared_ptr<VertexColle
     const bool fastTrace = !IsFastBuild(filter);
     const bool update = false;
 
-    // get AS size and create buffer for AS
-    const auto buildSizes = asBuilder->GetBottomBuildSizes(geoms.size(), geoms.data(), primCounts.data(), fastTrace);
+    // get AS size and create buffer for AS (cached while the geometry topology is unchanged)
+    const uint64_t signature = HashPrimitiveCounts((uint32_t)geoms.size(), primCounts);
+
+    VkAccelerationStructureBuildSizesInfoKHR buildSizes;
+    if (blas.IsBuildSizesCached(signature))
+    {
+        buildSizes = blas.GetCachedBuildSizes();
+    }
+    else
+    {
+        buildSizes = asBuilder->GetBottomBuildSizes(geoms.size(), geoms.data(), primCounts.data(), fastTrace);
+        blas.SetCachedBuildSizes(signature, buildSizes);
+    }
 
     // if no buffer, or it was created, but its size is too small for current AS
     blas.RecreateIfNotValid(buildSizes, allocator);
@@ -485,12 +509,12 @@ bool ASManager::SetupBLAS(BLASComponent &blas, const std::shared_ptr<VertexColle
     asBuilder->AddBLAS(blas.GetAS(), geoms.size(),
                        geoms.data(), ranges.data(),
                        buildSizes,
-                       fastTrace, update, blas.GetFilter() & VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE);
+                       fastTrace, update, blas.GetFilter() & (VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE | VertexCollectorFilterTypeFlagBits::CF_DYNAMIC));
 
     return true;
 }
 
-void ASManager::UpdateBLAS(BLASComponent &blas, const std::shared_ptr<VertexCollector> &vertCollector)
+bool ASManager::UpdateBLAS(BLASComponent &blas, const std::shared_ptr<VertexCollector> &vertCollector)
 {
     auto filter = blas.GetFilter();
     const std::vector<VkAccelerationStructureGeometryKHR> &geoms = vertCollector->GetASGeometries(filter);
@@ -499,7 +523,7 @@ void ASManager::UpdateBLAS(BLASComponent &blas, const std::shared_ptr<VertexColl
 
     if (blas.IsEmpty())
     {
-        return;
+        return false;
     }
 
     const std::vector<VkAccelerationStructureBuildRangeInfoKHR> &ranges = vertCollector->GetASBuildRangeInfos(filter);
@@ -510,17 +534,33 @@ void ASManager::UpdateBLAS(BLASComponent &blas, const std::shared_ptr<VertexColl
     // must be just updated
     const bool update = true;
 
-    const auto buildSizes = asBuilder->GetBottomBuildSizes(
-        geoms.size(), geoms.data(), primCounts.data(), fastTrace);
+    const uint64_t signature = HashPrimitiveCounts((uint32_t)geoms.size(), primCounts);
 
-    assert(blas.IsValid(buildSizes));
+    VkAccelerationStructureBuildSizesInfoKHR buildSizes;
+    if (blas.IsBuildSizesCached(signature))
+    {
+        buildSizes = blas.GetCachedBuildSizes();
+    }
+    else
+    {
+        buildSizes = asBuilder->GetBottomBuildSizes(geoms.size(), geoms.data(), primCounts.data(), fastTrace);
+        blas.SetCachedBuildSizes(signature, buildSizes);
+    }
+
+    if (!blas.IsValid(buildSizes))
+    {
+        return false;
+    }
+
     assert(blas.GetAS() != VK_NULL_HANDLE);
 
     // add BLAS, all passed arrays must be alive until BuildBottomLevel() call
     asBuilder->AddBLAS(blas.GetAS(), geoms.size(),
                        geoms.data(), ranges.data(),
                        buildSizes,
-                       fastTrace, update, blas.GetFilter() & VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE);
+                       fastTrace, update, blas.GetFilter() & (VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE | VertexCollectorFilterTypeFlagBits::CF_DYNAMIC));
+
+    return true;
 }
 
 // separate functions to make adding between Begin..Geometry() and Submit..Geometry() a bit clearer
@@ -669,13 +709,24 @@ void ASManager::SubmitDynamicGeometry(VkCommandBuffer cmd, uint32_t frameIndex)
 
     bool toBuild = false;
 
-    // recreate dynamic blas
+    // refit dynamic BLAS when topology is unchanged, else rebuild
     for (auto &dynamicBlas : allDynamicBlas[frameIndex])
     {
         // must be dynamic
         assert(dynamicBlas->GetFilter() & FT::CF_DYNAMIC);
 
-        toBuild |= SetupBLAS(*dynamicBlas, colDyn);
+        const uint32_t newGeomCount = (uint32_t)colDyn->GetASGeometries(dynamicBlas->GetFilter()).size();
+
+        // Doom dynamic geometry (billboards, moving sectors) keeps constant
+        // primitive counts, so equal geometry count means refit is valid.
+        if (newGeomCount > 0 && dynamicBlas->GetGeomCount() == newGeomCount && UpdateBLAS(*dynamicBlas, colDyn))
+        {
+            toBuild = true;
+        }
+        else
+        {
+            toBuild |= SetupBLAS(*dynamicBlas, colDyn);
+        }
     }
     
     if (!toBuild)
@@ -1004,8 +1055,19 @@ void ASManager::BuildTLAS(VkCommandBuffer cmd, uint32_t frameIndex, const TLASPr
     instData.arrayOfPointers = VK_FALSE;
     instData.data.deviceAddress = instanceBuffer->GetDeviceAddress();
 
-    // get AS size and create buffer for AS
-    VkAccelerationStructureBuildSizesInfoKHR buildSizes = asBuilder->GetTopBuildSizes(&instGeom, instanceCount, false);
+    // get AS size and create buffer for AS (cached while the instance count is unchanged)
+    const uint64_t tlasSignature = 0xd1b54a32d192ed03ull ^ (uint64_t)instanceCount;
+
+    VkAccelerationStructureBuildSizesInfoKHR buildSizes;
+    if (pCurrentTLAS->IsBuildSizesCached(tlasSignature))
+    {
+        buildSizes = pCurrentTLAS->GetCachedBuildSizes();
+    }
+    else
+    {
+        buildSizes = asBuilder->GetTopBuildSizes(&instGeom, instanceCount, false);
+        pCurrentTLAS->SetCachedBuildSizes(tlasSignature, buildSizes);
+    }
 
     // if previous buffer's size is not enough
     pCurrentTLAS->RecreateIfNotValid(buildSizes, allocator);

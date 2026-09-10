@@ -202,8 +202,14 @@ void TextureManager::SubmitDescriptors(uint32_t frameIndex,
         textureDesc->ResetAllCache(frameIndex);
     }
 
-    // update desc set with current values
-    for (uint32_t i = 0; i < textures.size(); i++)
+    // update desc set with current values; slots above the high-water mark are never referenced
+    uint32_t descCount = highestUsedTextureIndex + 1;
+    if (descCount > textures.size())
+    {
+        descCount = (uint32_t)textures.size();
+    }
+
+    for (uint32_t i = 0; i < descCount; i++)
     {
         textures[i].samplerHandle.SetIfHasDynamicSamplerFilter(newDynamicSamplerFilter);
 
@@ -674,7 +680,14 @@ uint32_t TextureManager::InsertTexture(uint32_t frameIndex, VkImage image, VkIma
     texture->view = view;
     texture->samplerHandle = samplerHandle;
 
-    return (uint32_t)std::distance(textures.begin(), texture);
+    const uint32_t textureIndex = (uint32_t)std::distance(textures.begin(), texture);
+
+    if (textureIndex > highestUsedTextureIndex)
+    {
+        highestUsedTextureIndex = textureIndex;
+    }
+
+    return textureIndex;
 }
 
 void TextureManager::DestroyTexture(const Texture &texture)

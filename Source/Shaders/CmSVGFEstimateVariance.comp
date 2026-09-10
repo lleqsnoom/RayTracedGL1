@@ -162,6 +162,8 @@ void main()
     }
 
     const float l = getLuminance(pixDataColor);
+    // center normal is shared by every tap, so decode it once
+    const vec3 pixNormal = decodeNormal(pixData.encNormalGeometry);
 
     vec2 spatialMoments = vec2(l, l * l) + temporalMoments;
     float weightSum = 1.0;
@@ -182,7 +184,14 @@ void main()
             const float l_q = getLuminance(color_q);
 
             const float w_z = exp(-abs(pixData.depth - qData.depth) / max(dot(pixData.gradDepth, abs(vec2(xx, yy))), 0.01));
-            const float w_n = pow(max(0.0, dotEnc(pixData.encNormalGeometry, qData.encNormalGeometry)), 128.0);
+            const float n_n = max(0.0, dot(pixNormal, decodeNormal(qData.encNormalGeometry)));
+            float n_n_2 = n_n * n_n;
+            float n_n_4 = n_n_2 * n_n_2;
+            float n_n_8 = n_n_4 * n_n_4;
+            float n_n_16 = n_n_8 * n_n_8;
+            float n_n_32 = n_n_16 * n_n_16;
+            float n_n_64 = n_n_32 * n_n_32;
+            const float w_n = n_n_64 * n_n_64;
 
             const float w = w_z * w_n;
 

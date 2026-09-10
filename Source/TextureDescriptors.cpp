@@ -23,6 +23,15 @@
 
 using namespace RTGL1;
 
+namespace
+{
+// descriptors for unused slots all use the same sampler; building the Handle per slot is
+// pure overhead, so share one instance
+const SamplerManager::Handle EMPTY_SAMPLER_HANDLE(RG_SAMPLER_FILTER_NEAREST,
+                                                  RG_SAMPLER_ADDRESS_MODE_REPEAT,
+                                                  RG_SAMPLER_ADDRESS_MODE_REPEAT, 0);
+}
+
 TextureDescriptors::TextureDescriptors(VkDevice _device, std::shared_ptr<SamplerManager> _samplerManager, uint32_t _maxTextureCount, uint32_t _bindingIndex) :
     device(_device),
     samplerManager(std::move(_samplerManager)),
@@ -186,12 +195,17 @@ void TextureDescriptors::ResetTextureDesc(uint32_t frameIndex, uint32_t textureI
            emptyTextureImageLayout != VK_IMAGE_LAYOUT_UNDEFINED);
 
     // try to update with empty data
-    UpdateTextureDesc(frameIndex, textureIndex, 
-                      emptyTextureImageView, SamplerManager::Handle(RG_SAMPLER_FILTER_NEAREST, RG_SAMPLER_ADDRESS_MODE_REPEAT, RG_SAMPLER_ADDRESS_MODE_REPEAT, 0));
+    UpdateTextureDesc(frameIndex, textureIndex,
+                      emptyTextureImageView, EMPTY_SAMPLER_HANDLE);
 }
 
 void TextureDescriptors::FlushDescWrites()
 {
+    if (currentWriteCount == 0)
+    {
+        return;
+    }
+
     vkUpdateDescriptorSets(device, currentWriteCount, writeInfos.data(), 0, nullptr);
     currentWriteCount = 0;
 }

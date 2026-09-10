@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <array>
 #include <vector>
 
 #include "Buffer.h"
@@ -149,6 +150,8 @@ private:
     uint32_t GetGeometryCount(VertexCollectorFilterTypeFlags type);
     uint32_t GetAllGeometryCount() const;
 
+    VertexCollectorFilter *GetFilterByFlags(VertexCollectorFilterTypeFlags type) const;
+
 private:
     struct MaterialRef
     {
@@ -186,6 +189,9 @@ private:
     // material index to a list of () that have that material
     rgl::unordered_map<uint32_t, std::vector<MaterialRef>> materialDependencies;
     rgl::unordered_map<VertexCollectorFilterTypeFlags, std::shared_ptr<VertexCollectorFilter>> filters;
+
+    // dense index by VertexCollectorFilterTypeFlags_GetID for per-primitive lookups
+    std::array<VertexCollectorFilter *, 64> filterByID{};
 
     // if some static geometries changed their tex coords, then they should be copied 
     // from staging to device-local; this array holds copy ranges; freed after vkCmdCopy call

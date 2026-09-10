@@ -20,6 +20,7 @@
 
 #include "SamplerManager.h"
 
+#include <algorithm>
 #include <string>
 
 #include "RgException.h"
@@ -60,9 +61,12 @@ SamplerManager::SamplerManager(VkDevice _device, uint32_t _anisotropy, bool _for
 
 SamplerManager::~SamplerManager()
 {
-    for (auto &p : samplers)
+    for (VkSampler s : samplers)
     {
-        vkDestroySampler(device, p.second, nullptr);
+        if (s != VK_NULL_HANDLE)
+        {
+            vkDestroySampler(device, s, nullptr);
+        }
     }
 
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
@@ -75,12 +79,14 @@ SamplerManager::~SamplerManager()
         samplersToDelete[i].clear();
     }
 ;
-    samplers.clear();
+    samplers.fill(VK_NULL_HANDLE);
 }
 
 void RTGL1::SamplerManager::CreateAllSamplers(uint32_t _anisotropy, float _mipLodBias)
 {
-    assert(samplers.empty());
+    assert(std::none_of(samplers.begin(), samplers.end(), [](VkSampler s) {
+        return s != VK_NULL_HANDLE;
+    }));
     assert(_anisotropy == 0 || _anisotropy == 2 || _anisotropy == 4 || _anisotropy == 8 || _anisotropy == 16);
 
     VkSamplerCreateInfo info = {};
@@ -128,7 +134,7 @@ void RTGL1::SamplerManager::CreateAllSamplers(uint32_t _anisotropy, float _mipLo
                 VkResult r = vkCreateSampler(device, &info, nullptr, &sampler);
                 VK_CHECKERROR(r);
 
-                assert(samplers.find(index) == samplers.end());
+                assert(samplers[index] == VK_NULL_HANDLE);
 
                 samplers[index] = sampler;
             }
@@ -147,7 +153,7 @@ void RTGL1::SamplerManager::CreateAllSamplers(uint32_t _anisotropy, float _mipLo
         VkResult r = vkCreateSampler(device, &info, nullptr, &sampler);
         VK_CHECKERROR(r);
 
-        assert(samplers.find(index) == samplers.end());
+        assert(samplers[index] == VK_NULL_HANDLE);
 
         samplers[index] = sampler;
     }
@@ -155,12 +161,14 @@ void RTGL1::SamplerManager::CreateAllSamplers(uint32_t _anisotropy, float _mipLo
 
 void RTGL1::SamplerManager::AddAllSamplersToDestroy(uint32_t frameIndex)
 {
-    for (auto &p : samplers)
+    for (VkSampler &s : samplers)
     {
-        samplersToDelete[frameIndex].push_back(p.second);
+        if (s != VK_NULL_HANDLE)
+        {
+            samplersToDelete[frameIndex].push_back(s);
+            s = VK_NULL_HANDLE;
+        }
     }
-
-    samplers.clear();
 }
 
 void RTGL1::SamplerManager::PrepareForFrame(uint32_t frameIndex)
@@ -178,11 +186,11 @@ VkSampler SamplerManager::GetSampler(
 {
     uint32_t index = ToIndex(filter, addressModeU, addressModeV, forceLowestMip);
 
-    auto f = samplers.find(index);
+    VkSampler sampler = samplers[index];
 
-    if (f != samplers.end())
+    if (sampler != VK_NULL_HANDLE)
     {
-        return f->second;
+        return sampler;
     }
     else
     {
@@ -197,16 +205,16 @@ VkSampler SamplerManager::GetSampler(
 VkSampler RTGL1::SamplerManager::GetSampler(const Handle &handle) const
 {
     assert(handle.internalIndex != 0);
-    auto f = samplers.find(handle.internalIndex);
+    VkSampler sampler = samplers[handle.internalIndex];
 
-    if (f == samplers.end())
+    if (sampler == VK_NULL_HANDLE)
     {
         // pHandle->internalIndex is incorrect
         assert(0);
         return VK_NULL_HANDLE;
     }
 
-    return f->second;
+    return sampler;
 }
 
 bool RTGL1::SamplerManager::TryChangeMipLodBias(uint32_t frameIndex, float newMipLodBias)

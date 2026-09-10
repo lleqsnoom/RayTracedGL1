@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <array>
 #include <vector>
 
 #include "Common.h"
@@ -95,7 +96,8 @@ private:
 private:
     VkDevice device;
 
-    rgl::unordered_map<uint32_t, VkSampler> samplers;
+    // dense index (filter | addressU | addressV | forceLowestMip); VK_NULL_HANDLE means "not created"
+    std::array<VkSampler, 512> samplers{};
     std::vector<VkSampler> samplersToDelete[MAX_FRAMES_IN_FLIGHT];
     float mipLodBias;
     uint32_t anisotropy;

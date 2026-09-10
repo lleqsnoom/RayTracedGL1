@@ -55,8 +55,6 @@ CommandBufferManager::~CommandBufferManager()
 {
     for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++)
     {
-        assert(cmdQueues[i].empty());
-
         vkDestroyCommandPool(device, graphicsCmds[i].pool, nullptr);
         vkDestroyCommandPool(device, computeCmds[i].pool, nullptr);
         vkDestroyCommandPool(device, transferCmds[i].pool, nullptr);
@@ -65,8 +63,6 @@ CommandBufferManager::~CommandBufferManager()
 
 void CommandBufferManager::PrepareForFrame(uint32_t frameIndex)
 {
-    assert(cmdQueues[frameIndex].empty());
-
     vkResetCommandPool(device, graphicsCmds[frameIndex].pool, 0);
     vkResetCommandPool(device, computeCmds[frameIndex].pool, 0);
     vkResetCommandPool(device, transferCmds[frameIndex].pool, 0);
@@ -78,7 +74,7 @@ void CommandBufferManager::PrepareForFrame(uint32_t frameIndex)
     currentFrameIndex = frameIndex;
 }
 
-VkCommandBuffer CommandBufferManager::StartCmd(uint32_t frameIndex, AllocatedCmds &allocated, VkQueue queue)
+VkCommandBuffer CommandBufferManager::StartCmd(uint32_t frameIndex, AllocatedCmds &allocated)
 {
     VkResult r;
 
@@ -109,9 +105,37 @@ VkCommandBuffer CommandBufferManager::StartCmd(uint32_t frameIndex, AllocatedCmd
     r = vkBeginCommandBuffer(cmd, &beginInfo);
     VK_CHECKERROR(r);
 
-    cmdQueues[frameIndex][cmd] = queue;
-
     return cmd;
+}
+
+VkQueue CommandBufferManager::GetQueueForCmd(VkCommandBuffer cmd) const
+{
+    const auto owns = [cmd](const AllocatedCmds &a) {
+        for (uint32_t i = 0; i < a.curCount; i++)
+        {
+            if (a.cmds[i] == cmd)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if (owns(graphicsCmds[currentFrameIndex]))
+    {
+        return queues.lock()->GetGraphics();
+    }
+    if (owns(computeCmds[currentFrameIndex]))
+    {
+        return queues.lock()->GetCompute();
+    }
+    if (owns(transferCmds[currentFrameIndex]))
+    {
+        return queues.lock()->GetTransfer();
+    }
+
+    assert(false);
+    return queues.lock()->GetGraphics();
 }
 
 VkCommandBuffer CommandBufferManager::StartGraphicsCmd()
@@ -121,7 +145,7 @@ VkCommandBuffer CommandBufferManager::StartGraphicsCmd()
         return VK_NULL_HANDLE;
     }
 
-    return StartCmd(currentFrameIndex, graphicsCmds[currentFrameIndex], queues.lock()->GetGraphics());
+    return StartCmd(currentFrameIndex, graphicsCmds[currentFrameIndex]);
 }
 
 VkCommandBuffer CommandBufferManager::StartComputeCmd()
@@ -131,7 +155,7 @@ VkCommandBuffer CommandBufferManager::StartComputeCmd()
         return VK_NULL_HANDLE;
     }
 
-    return StartCmd(currentFrameIndex, computeCmds[currentFrameIndex], queues.lock()->GetCompute());
+    return StartCmd(currentFrameIndex, computeCmds[currentFrameIndex]);
 }
 
 VkCommandBuffer CommandBufferManager::StartTransferCmd()
@@ -141,7 +165,7 @@ VkCommandBuffer CommandBufferManager::StartTransferCmd()
         return VK_NULL_HANDLE;
     }
 
-    return StartCmd(currentFrameIndex, transferCmds[currentFrameIndex], queues.lock()->GetTransfer());
+    return StartCmd(currentFrameIndex, transferCmds[currentFrameIndex]);
 }
 
 void CommandBufferManager::Submit(VkCommandBuffer cmd, VkFence fence)
@@ -154,13 +178,7 @@ void CommandBufferManager::Submit(VkCommandBuffer cmd, VkFence fence)
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd;
 
-    assert(cmdQueues[currentFrameIndex].find(cmd) != cmdQueues[currentFrameIndex].end());
-
-    auto &qs = cmdQueues[currentFrameIndex];
-    assert(qs.find(cmd) != qs.end());
-
-    VkQueue q = qs[cmd];
-    qs.erase(cmd);
+    VkQueue q = GetQueueForCmd(cmd);
 
     r = vkQueueSubmit(q, 1, &submitInfo, fence);
     VK_CHECKERROR(r);
@@ -182,11 +200,7 @@ void CommandBufferManager::Submit(VkCommandBuffer cmd, VkSemaphore waitSemaphore
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = &signalSemaphore;
 
-    auto &qs = cmdQueues[currentFrameIndex];
-    assert(qs.find(cmd) != qs.end());
-
-    VkQueue q = qs[cmd];
-    qs.erase(cmd);
+    VkQueue q = GetQueueForCmd(cmd);
 
     r = vkQueueSubmit(q, 1, &submitInfo, fence);
     VK_CHECKERROR(r);
