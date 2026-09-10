@@ -43,8 +43,9 @@ public:
     ASComponent& operator=( const ASComponent& other ) = delete;
     ASComponent& operator=( ASComponent&& other ) noexcept = delete;
 
-    void         RecreateIfNotValid( const VkAccelerationStructureBuildSizesInfoKHR& buildSizes,
-                                     const std::shared_ptr< MemoryAllocator >&       allocator );
+    // returns true if the buffer/AS were (re)created
+    bool RecreateIfNotValid( const VkAccelerationStructureBuildSizesInfoKHR& buildSizes,
+                             const std::shared_ptr< MemoryAllocator >&       allocator );
 
     VkAccelerationStructureKHR GetAS() const;
     VkDeviceAddress            GetASAddress() const;
@@ -91,6 +92,13 @@ public:
     bool                           IsEmpty() const;
     uint32_t                       GetGeomCount() const;
 
+    bool     CanRefit( const std::vector< VkAccelerationStructureGeometryKHR >&     geometries,
+                       const std::vector< VkAccelerationStructureBuildRangeInfoKHR >& ranges ) const;
+    uint32_t GetFramesSinceFullBuild() const;
+    void     RecordBuild( const std::vector< VkAccelerationStructureGeometryKHR >&     geometries,
+                          const std::vector< VkAccelerationStructureBuildRangeInfoKHR >& ranges,
+                          bool                                              wasFullBuild );
+
 protected:
     void        CreateAS( VkDeviceSize size ) override;
     const char* GetBufferDebugName() const override;
@@ -98,6 +106,11 @@ protected:
 private:
     VertexCollectorFilterTypeFlags filter;
     uint32_t                       geomCount;
+
+    std::vector< VkAccelerationStructureGeometryKHR >      lastGeometries;
+    std::vector< VkAccelerationStructureBuildRangeInfoKHR > lastRanges;
+    bool                                                   hasLastBuild        = false;
+    uint32_t                                               framesSinceFullBuild = 0;
 };
 
 

@@ -619,6 +619,8 @@ RTGL1::ASManager::~ASManager()
 
 namespace
 {
+constexpr uint32_t MAX_CONSECUTIVE_BLAS_UPDATES = 30;
+
 uint64_t HashPrimitiveCounts( uint32_t geomCount, const std::vector< uint32_t >& primCounts )
 {
     uint64_t h = 0xcbf29ce484222325ull ^ static_cast< uint64_t >( geomCount );
@@ -630,7 +632,9 @@ uint64_t HashPrimitiveCounts( uint32_t geomCount, const std::vector< uint32_t >&
 }
 }
 
-bool RTGL1::ASManager::SetupBLAS( BLASComponent& blas, const VertexCollector& vertCollector )
+bool RTGL1::ASManager::SetupBLAS( BLASComponent&         blas,
+                                  const VertexCollector& vertCollector,
+                                  bool                   allowRefit )
 {
     const auto  filter = blas.GetFilter();
     const auto& geoms  = vertCollector.GetASGeometries( filter );
@@ -646,7 +650,6 @@ bool RTGL1::ASManager::SetupBLAS( BLASComponent& blas, const VertexCollector& ve
     const auto& primCounts = vertCollector.GetPrimitiveCounts( filter );
 
     const bool fastTrace = !IsFastBuild( filter );
-    const bool update    = false;
 
     // get AS size and create buffer for AS (cached while the geometry topology is unchanged)
     const uint64_t signature =
@@ -665,9 +668,18 @@ bool RTGL1::ASManager::SetupBLAS( BLASComponent& blas, const VertexCollector& ve
     }
 
     // if no buffer, or it was created, but its size is too small for current AS
-    blas.RecreateIfNotValid( buildSizes, allocator );
+    const bool recreated = blas.RecreateIfNotValid( buildSizes, allocator );
+
+    // refit is valid only against the same AS with an identical geometry/topology; a periodic
+    // full rebuild bounds BVH quality drift from repeated updates
+    const bool update = allowRefit && !recreated && blas.CanRefit( geoms, ranges ) &&
+                        blas.GetFramesSinceFullBuild() < MAX_CONSECUTIVE_BLAS_UPDATES;
 
     assert( blas.GetAS() != VK_NULL_HANDLE );
+
+    const bool isUpdateable =
+        filter & ( VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE |
+                   VertexCollectorFilterTypeFlagBits::CF_DYNAMIC );
 
     // add BLAS, all passed arrays must be alive until BuildBottomLevel() call
     asBuilder->AddBLAS( blas.GetAS(),
@@ -677,45 +689,11 @@ bool RTGL1::ASManager::SetupBLAS( BLASComponent& blas, const VertexCollector& ve
                         buildSizes,
                         fastTrace,
                         update,
-                        blas.GetFilter() & VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE );
+                        isUpdateable );
+
+    blas.RecordBuild( geoms, ranges, !update );
 
     return true;
-}
-
-void RTGL1::ASManager::UpdateBLAS( BLASComponent& blas, const VertexCollector& vertCollector )
-{
-    const auto  filter = blas.GetFilter();
-    const auto& geoms  = vertCollector.GetASGeometries( filter );
-
-    blas.SetGeometryCount( static_cast< uint32_t >( geoms.size() ) );
-
-    if( blas.IsEmpty() )
-    {
-        return;
-    }
-
-    const auto& ranges     = vertCollector.GetASBuildRangeInfos( filter );
-    const auto& primCounts = vertCollector.GetPrimitiveCounts( filter );
-
-    const bool fastTrace = !IsFastBuild( filter );
-    // must be just updated
-    const bool update = true;
-
-    const auto buildSizes =
-        asBuilder->GetBottomBuildSizes( geoms.size(), geoms.data(), primCounts.data(), fastTrace );
-
-    assert( blas.IsValid( buildSizes ) );
-    assert( blas.GetAS() != VK_NULL_HANDLE );
-
-    // add BLAS, all passed arrays must be alive until BuildBottomLevel() call
-    asBuilder->AddBLAS( blas.GetAS(),
-                        geoms.size(),
-                        geoms.data(),
-                        ranges.data(),
-                        buildSizes,
-                        fastTrace,
-                        update,
-                        blas.GetFilter() & VertexCollectorFilterTypeFlagBits::CF_STATIC_MOVABLE );
 }
 
 RTGL1::StaticGeometryToken RTGL1::ASManager::BeginStaticGeometry()
@@ -771,7 +749,7 @@ void RTGL1::ASManager::SubmitStaticGeometry( StaticGeometryToken& token )
         // if flags have any of static bits
         if( staticBlas->GetFilter() & staticFlags )
         {
-            SetupBLAS( *staticBlas, *collectorStatic );
+            SetupBLAS( *staticBlas, *collectorStatic, false );
         }
     }
 
@@ -844,7 +822,7 @@ void RTGL1::ASManager::SubmitDynamicGeometry( DynamicGeometryToken& token,
         // must be dynamic
         assert( dynamicBlas->GetFilter() & FT::CF_DYNAMIC );
 
-        toBuild |= SetupBLAS( *dynamicBlas, colDyn );
+        toBuild |= SetupBLAS( *dynamicBlas, colDyn, true );
     }
 
     if( !toBuild )
