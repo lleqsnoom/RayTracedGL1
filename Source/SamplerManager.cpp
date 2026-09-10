@@ -20,6 +20,7 @@
 
 #include "SamplerManager.h"
 
+#include <algorithm>
 #include <string>
 
 #include "RgException.h"
@@ -193,9 +194,12 @@ RTGL1::SamplerManager::SamplerManager( VkDevice _device,
 
 RTGL1::SamplerManager::~SamplerManager()
 {
-    for( auto& p : samplers )
+    for( VkSampler s : samplers )
     {
-        vkDestroySampler( device, p.second, nullptr );
+        if( s != VK_NULL_HANDLE )
+        {
+            vkDestroySampler( device, s, nullptr );
+        }
     }
 
     for( uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++ )
@@ -207,12 +211,14 @@ RTGL1::SamplerManager::~SamplerManager()
 
         samplersToDelete[ i ].clear();
     };
-    samplers.clear();
+    samplers.fill( VK_NULL_HANDLE );
 }
 
 void RTGL1::SamplerManager::CreateAllSamplers( uint32_t _anisotropy, float _mipLodBias )
 {
-    assert( samplers.empty() );
+    assert( std::none_of( samplers.begin(), samplers.end(), []( VkSampler s ) {
+        return s != VK_NULL_HANDLE;
+    } ) );
     assert( _anisotropy == 0 || _anisotropy == 2 || _anisotropy == 4 || _anisotropy == 8 ||
             _anisotropy == 16 );
 
@@ -257,7 +263,7 @@ void RTGL1::SamplerManager::CreateAllSamplers( uint32_t _anisotropy, float _mipL
                 VkResult r = vkCreateSampler( device, &info, nullptr, &sampler );
                 VK_CHECKERROR( r );
 
-                assert( samplers.find( index ) == samplers.end() );
+                assert( samplers[ index ] == VK_NULL_HANDLE );
 
                 samplers[ index ] = sampler;
             }
@@ -267,12 +273,14 @@ void RTGL1::SamplerManager::CreateAllSamplers( uint32_t _anisotropy, float _mipL
 
 void RTGL1::SamplerManager::AddAllSamplersToDestroy( uint32_t frameIndex )
 {
-    for( auto& p : samplers )
+    for( VkSampler& s : samplers )
     {
-        samplersToDelete[ frameIndex ].push_back( p.second );
+        if( s != VK_NULL_HANDLE )
+        {
+            samplersToDelete[ frameIndex ].push_back( s );
+            s = VK_NULL_HANDLE;
+        }
     }
-
-    samplers.clear();
 }
 
 void RTGL1::SamplerManager::PrepareForFrame( uint32_t frameIndex )
@@ -289,9 +297,9 @@ VkSampler RTGL1::SamplerManager::GetSampler( RgSamplerFilter      filter,
                                              RgSamplerAddressMode addressModeU,
                                              RgSamplerAddressMode addressModeV ) const
 {
-    auto f = samplers.find( ToIndex( filter, addressModeU, addressModeV ) );
+    VkSampler sampler = samplers[ ToIndex( filter, addressModeU, addressModeV ) ];
 
-    if( f == samplers.end() )
+    if( sampler == VK_NULL_HANDLE )
     {
         throw RgException( RG_RESULT_WRONG_FUNCTION_ARGUMENT,
                            "Wrong RgSamplerFilter(" + std::to_string( filter ) +
@@ -299,22 +307,23 @@ VkSampler RTGL1::SamplerManager::GetSampler( RgSamplerFilter      filter,
                                ", V: " + std::to_string( addressModeV ) + ") value" );
     }
 
-    return f->second;
+    return sampler;
 }
 
 VkSampler RTGL1::SamplerManager::GetSampler( const Handle& handle ) const
 {
     assert( handle.internalIndex != 0 );
-    auto f = samplers.find( handle.internalIndex );
 
-    if( f == samplers.end() )
+    VkSampler sampler = samplers[ handle.internalIndex ];
+
+    if( sampler == VK_NULL_HANDLE )
     {
-        // pHandle->internalIndex is incorrect
+        // handle.internalIndex is incorrect
         assert( 0 );
         return VK_NULL_HANDLE;
     }
 
-    return f->second;
+    return sampler;
 }
 
 bool RTGL1::SamplerManager::TryChangeMipLodBias( uint32_t frameIndex, float newMipLodBias )
