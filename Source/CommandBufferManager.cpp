@@ -63,8 +63,6 @@ RTGL1::CommandBufferManager::~CommandBufferManager()
 
 void RTGL1::CommandBufferManager::PrepareForFrame( uint32_t frameIndex )
 {
-    assert( cmdQueues[ frameIndex ].empty() );
-
     vkResetCommandPool( device, graphicsCmds[ frameIndex ].pool, 0 );
     vkResetCommandPool( device, computeCmds[ frameIndex ].pool, 0 );
     vkResetCommandPool( device, transferCmds[ frameIndex ].pool, 0 );
@@ -77,8 +75,7 @@ void RTGL1::CommandBufferManager::PrepareForFrame( uint32_t frameIndex )
 }
 
 VkCommandBuffer RTGL1::CommandBufferManager::StartCmd( uint32_t       frameIndex,
-                                                       AllocatedCmds& allocated,
-                                                       VkQueue        queue )
+                                                       AllocatedCmds& allocated )
 {
     VkResult r;
 
@@ -110,27 +107,55 @@ VkCommandBuffer RTGL1::CommandBufferManager::StartCmd( uint32_t       frameIndex
     r = vkBeginCommandBuffer( cmd, &beginInfo );
     VK_CHECKERROR( r );
 
-    cmdQueues[ frameIndex ][ cmd ] = queue;
-
     return cmd;
+}
+
+VkQueue RTGL1::CommandBufferManager::GetQueueForCmd( VkCommandBuffer cmd ) const
+{
+    const auto owns = [ cmd ]( const AllocatedCmds& a ) {
+        for( uint32_t i = 0; i < a.curCount; i++ )
+        {
+            if( a.cmds[ i ] == cmd )
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    if( owns( graphicsCmds[ currentFrameIndex ] ) )
+    {
+        return queues->GetGraphics();
+    }
+    if( owns( computeCmds[ currentFrameIndex ] ) )
+    {
+        return queues->GetCompute();
+    }
+    if( owns( transferCmds[ currentFrameIndex ] ) )
+    {
+        return queues->GetTransfer();
+    }
+
+    assert( false );
+    return queues->GetGraphics();
 }
 
 VkCommandBuffer RTGL1::CommandBufferManager::StartGraphicsCmd()
 {
     return StartCmd(
-        currentFrameIndex, graphicsCmds[ currentFrameIndex ], queues->GetGraphics() );
+        currentFrameIndex, graphicsCmds[ currentFrameIndex ] );
 }
 
 VkCommandBuffer RTGL1::CommandBufferManager::StartComputeCmd()
 {
     return StartCmd(
-        currentFrameIndex, computeCmds[ currentFrameIndex ], queues->GetCompute() );
+        currentFrameIndex, computeCmds[ currentFrameIndex ] );
 }
 
 VkCommandBuffer RTGL1::CommandBufferManager::StartTransferCmd()
 {
     return StartCmd(
-        currentFrameIndex, transferCmds[ currentFrameIndex ], queues->GetTransfer() );
+        currentFrameIndex, transferCmds[ currentFrameIndex ] );
 }
 
 void RTGL1::CommandBufferManager::Submit( VkCommandBuffer cmd, VkFence fence )
@@ -144,13 +169,7 @@ void RTGL1::CommandBufferManager::Submit( VkCommandBuffer cmd, VkFence fence )
         .pCommandBuffers    = &cmd,
     };
 
-    assert( cmdQueues[ currentFrameIndex ].find( cmd ) != cmdQueues[ currentFrameIndex ].end() );
-
-    auto& qs = cmdQueues[ currentFrameIndex ];
-    assert( qs.find( cmd ) != qs.end() );
-
-    VkQueue q = qs[ cmd ];
-    qs.erase( cmd );
+    VkQueue q = GetQueueForCmd( cmd );
 
     r = vkQueueSubmit( q, 1, &submitInfo, fence );
     VK_CHECKERROR( r );
@@ -178,11 +197,7 @@ void RTGL1::CommandBufferManager::Submit( VkCommandBuffer             cmd,
         .pSignalSemaphores    = &signalSemaphore,
     };
 
-    auto& qs = cmdQueues[ currentFrameIndex ];
-    assert( qs.find( cmd ) != qs.end() );
-
-    VkQueue q = qs[ cmd ];
-    qs.erase( cmd );
+    VkQueue q = GetQueueForCmd( cmd );
 
     r = vkQueueSubmit( q, 1, &submitInfo, fence );
     VK_CHECKERROR( r );
