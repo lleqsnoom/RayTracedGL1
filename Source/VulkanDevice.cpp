@@ -327,6 +327,16 @@ void RTGL1::VulkanDevice::FillUniform( RTGL1::ShGlobalUniform* gu,
         memcpy( gu->acidColorAndDensity, params.acidColor.data, 3 * sizeof( float ) );
         gu->acidColorAndDensity[ 3 ] = std::max( 0.0f, params.acidDensity );
 
+        // media extinction is frame-constant, so compute -log(color) once here instead of per ray
+        const float acidDensityMult = std::max( 1.0f, std::sqrt( gu->acidColorAndDensity[ 3 ] ) );
+        for( int i = 0; i < 3; i++ )
+        {
+            gu->waterExtinction[ i ] = -std::log( gu->waterColorAndDensity[ i ] );
+            gu->acidExtinction[ i ]  = -std::log( gu->acidColorAndDensity[ i ] ) * acidDensityMult;
+        }
+        gu->waterExtinction[ 3 ] = 0.0f;
+        gu->acidExtinction[ 3 ]  = 0.0f;
+
         gu->waterWaveSpeed    = params.waterWaveSpeed;
         gu->waterWaveStrength = params.waterWaveNormalStrength;
         gu->waterTextureDerivativesMultiplier =

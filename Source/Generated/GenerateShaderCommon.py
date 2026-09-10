@@ -624,6 +624,8 @@ GLOBAL_UNIFORM_STRUCT = [
     (TYPE_INT32,        4,      "instanceGeomCount",            align4(CONST["MAX_TOP_LEVEL_INSTANCE_COUNT"]) // 4),
     (TYPE_FLOAT32,     44,      "viewProjCubemap",              6),
     (TYPE_FLOAT32,     44,      "skyCubemapRotationTransform",  1),
+    (TYPE_FLOAT32,      4,      "waterExtinction",              1),
+    (TYPE_FLOAT32,      4,      "acidExtinction",               1),
 ]
 
 GEOM_INSTANCE_STRUCT = [
@@ -678,6 +680,10 @@ LIGHT_ENCODED_STRUCT = [
     (TYPE_FLOAT32,      4,      "data_0",               1),
     (TYPE_FLOAT32,      4,      "data_1",               1),
     (TYPE_FLOAT32,      4,      "data_2",               1),
+    # per-light constants precomputed on the CPU: (triCenter, aprxTriRadius) and
+    # (normalizedNormal, area) for triangle lights
+    (TYPE_FLOAT32,      4,      "precomputed_0",        1),
+    (TYPE_FLOAT32,      4,      "precomputed_1",        1),
 ]
 
 # TODO: light index / target pdf - 16 bits

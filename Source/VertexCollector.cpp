@@ -682,28 +682,19 @@ VkBuffer RTGL1::VertexCollector::GetIndexBuffer() const
 const std::vector< uint32_t >& RTGL1::VertexCollector::GetPrimitiveCounts(
     VertexCollectorFilterTypeFlags filter ) const
 {
-    auto f = filters.find( filter );
-    assert( f != filters.end() );
-
-    return f->second->GetPrimitiveCounts();
+    return GetFilterByFlags( filter )->GetPrimitiveCounts();
 }
 
 const std::vector< VkAccelerationStructureGeometryKHR >& RTGL1::VertexCollector::GetASGeometries(
     VertexCollectorFilterTypeFlags filter ) const
 {
-    auto f = filters.find( filter );
-    assert( f != filters.end() );
-
-    return f->second->GetASGeometries();
+    return GetFilterByFlags( filter )->GetASGeometries();
 }
 
 const std::vector< VkAccelerationStructureBuildRangeInfoKHR >& RTGL1::VertexCollector::
     GetASBuildRangeInfos( VertexCollectorFilterTypeFlags filter ) const
 {
-    auto f = filters.find( filter );
-    assert( f != filters.end() );
-
-    return f->second->GetASBuildRangeInfos();
+    return GetFilterByFlags( filter )->GetASBuildRangeInfos();
 }
 
 bool RTGL1::VertexCollector::AreGeometriesEmpty( VertexCollectorFilterTypeFlags flags ) const
@@ -789,32 +780,24 @@ void RTGL1::VertexCollector::InsertVertexPreprocessFinishBarrier( VkCommandBuffe
 uint32_t RTGL1::VertexCollector::PushGeometry( VertexCollectorFilterTypeFlags            type,
                                                const VkAccelerationStructureGeometryKHR& geom )
 {
-    assert( filters.find( type ) != filters.end() );
-
-    return filters[ type ]->PushGeometry( type, geom );
+    return GetFilterByFlags( type )->PushGeometry( type, geom );
 }
 
 void RTGL1::VertexCollector::PushPrimitiveCount( VertexCollectorFilterTypeFlags type,
                                                  uint32_t                       primCount )
 {
-    assert( filters.find( type ) != filters.end() );
-
-    filters[ type ]->PushPrimitiveCount( type, primCount );
+    GetFilterByFlags( type )->PushPrimitiveCount( type, primCount );
 }
 
 void RTGL1::VertexCollector::PushRangeInfo(
     VertexCollectorFilterTypeFlags type, const VkAccelerationStructureBuildRangeInfoKHR& rangeInfo )
 {
-    assert( filters.find( type ) != filters.end() );
-
-    filters[ type ]->PushRangeInfo( type, rangeInfo );
+    GetFilterByFlags( type )->PushRangeInfo( type, rangeInfo );
 }
 
 uint32_t RTGL1::VertexCollector::GetGeometryCount( VertexCollectorFilterTypeFlags type )
 {
-    assert( filters.find( type ) != filters.end() );
-
-    return filters[ type ]->GetGeometryCount();
+    return GetFilterByFlags( type )->GetGeometryCount();
 }
 
 uint32_t RTGL1::VertexCollector::GetAllGeometryCount() const
@@ -849,6 +832,18 @@ void RTGL1::VertexCollector::AddFilter( VertexCollectorFilterTypeFlags filterGro
     assert( filters.find( filterGroup ) == filters.end() );
 
     filters[ filterGroup ] = std::make_shared< VertexCollectorFilter >( filterGroup );
+    filterByID[ VertexCollectorFilterTypeFlags_GetID( filterGroup ) ] =
+        filters[ filterGroup ].get();
+}
+
+RTGL1::VertexCollectorFilter* RTGL1::VertexCollector::GetFilterByFlags(
+    VertexCollectorFilterTypeFlags type ) const
+{
+    const uint32_t id = VertexCollectorFilterTypeFlags_GetID( type );
+    assert( id < filterByID.size() );
+    assert( filterByID[ id ] != nullptr );
+
+    return filterByID[ id ];
 }
 
 // try create filters for each group (mask)

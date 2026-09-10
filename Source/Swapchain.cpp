@@ -244,14 +244,20 @@ void RTGL1::Swapchain::BlitForPresent( VkCommandBuffer cmd,
                          VK_ACCESS_SHADER_WRITE_BIT,
                          VK_ACCESS_TRANSFER_WRITE_BIT,
                          srcImageLayout,
-                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL );
+                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT |
+                             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR |
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT );
 
     Utils::BarrierImage( cmd,
                          swapchainImage,
                          0,
                          VK_ACCESS_TRANSFER_WRITE_BIT,
                          swapchainImageLayout,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL );
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT );
 
     vkCmdBlitImage( cmd,
                     srcImage,
@@ -268,14 +274,20 @@ void RTGL1::Swapchain::BlitForPresent( VkCommandBuffer cmd,
                          VK_ACCESS_TRANSFER_WRITE_BIT,
                          VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
                          VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                         srcImageLayout );
+                         srcImageLayout,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT |
+                             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR |
+                             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT );
 
     Utils::BarrierImage( cmd,
                          swapchainImage,
                          VK_ACCESS_TRANSFER_WRITE_BIT,
                          0,
                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                         swapchainImageLayout );
+                         swapchainImageLayout,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT );
 }
 
 void RTGL1::Swapchain::BlitPreviousForPresent( VkCommandBuffer cmd )

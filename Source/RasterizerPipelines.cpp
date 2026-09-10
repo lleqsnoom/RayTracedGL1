@@ -64,12 +64,14 @@ RTGL1::RasterizerPipelines::~RasterizerPipelines()
 
 void RTGL1::RasterizerPipelines::DestroyAllPipelines()
 {
-    for( auto& p : pipelines )
+    for( VkPipeline& p : pipelines )
     {
-        vkDestroyPipeline( device, p.second, nullptr );
+        if( p != VK_NULL_HANDLE )
+        {
+            vkDestroyPipeline( device, p, nullptr );
+            p = VK_NULL_HANDLE;
+        }
     }
-
-    pipelines.clear();
 }
 
 void RTGL1::RasterizerPipelines::OnShaderReload( const ShaderManager* shaderManager )
@@ -82,17 +84,16 @@ void RTGL1::RasterizerPipelines::OnShaderReload( const ShaderManager* shaderMana
 
 VkPipeline RTGL1::RasterizerPipelines::GetPipeline( PipelineStateFlags pipelineState )
 {
-    auto f = pipelines.find( pipelineState );
+    assert( pipelineState < pipelines.size() );
 
-    if( f == pipelines.end() )
+    VkPipeline& p = pipelines[ pipelineState ];
+
+    if( p == VK_NULL_HANDLE )
     {
-        VkPipeline p = CreatePipeline( pipelineState );
-
-        pipelines[ pipelineState ] = p;
-        return p;
+        p = CreatePipeline( pipelineState );
     }
 
-    return f->second;
+    return p;
 }
 
 VkPipelineLayout RTGL1::RasterizerPipelines::GetPipelineLayout()

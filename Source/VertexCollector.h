@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <array>
 #include <optional>
 #include <span>
 #include <vector>
@@ -136,6 +137,8 @@ private:
     uint32_t GetGeometryCount( VertexCollectorFilterTypeFlags type );
     uint32_t GetAllGeometryCount() const;
 
+    VertexCollectorFilter* GetFilterByFlags( VertexCollectorFilterTypeFlags type ) const;
+
 private:
     VkDevice                       device;
     VertexCollectorFilterTypeFlags filtersFlags;
@@ -232,6 +235,9 @@ private:
 
     rgl::unordered_map< VertexCollectorFilterTypeFlags, std::shared_ptr< VertexCollectorFilter > >
         filters;
+
+    // dense index by VertexCollectorFilterTypeFlags_GetID for per-primitive lookups
+    std::array< VertexCollectorFilter*, 64 > filterByID{};
 };
 
 }

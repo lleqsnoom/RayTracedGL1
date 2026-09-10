@@ -42,8 +42,10 @@ VkAccelerationStructureBuildSizesInfoKHR ASBuilder::GetBuildSizes(
     assert( geometryCount > 0 );
 
     VkBuildAccelerationStructureFlagsKHR flags =
-        fastTrace ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR
-                  : VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR;
+        ( fastTrace ? VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR
+                    : VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR ) |
+        // request update-capable sizes so updateScratchSize is valid when a refit is used
+        VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR;
 
     // mode, srcAccelerationStructure, dstAccelerationStructure
     // and all VkDeviceOrHostAddressKHR except transformData are ignored

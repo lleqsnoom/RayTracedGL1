@@ -103,14 +103,16 @@ void RTGL1::Denoiser::Denoise( VkCommandBuffer                               cmd
                 FI fs[] = {
                     FI::FB_IMAGE_INDEX_D_I_S_PING_GRADIENT,
                 };
-                framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+                framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
             }
             else
             {
                 FI fs[] = {
                     FI::FB_IMAGE_INDEX_D_I_S_PONG_GRADIENT,
                 };
-                framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+                framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
             }
 
             vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, gradientAtrous[ i ] );
@@ -145,7 +147,8 @@ void RTGL1::Denoiser::Denoise( VkCommandBuffer                               cmd
             FI::FB_IMAGE_INDEX_D_I_S_PING_GRADIENT,
 #endif
         };
-        framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+        framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
         vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, temporalAccumulation );
         vkCmdDispatch( cmd, wgCountX, wgCountY, 1 );
@@ -166,7 +169,8 @@ void RTGL1::Denoiser::Denoise( VkCommandBuffer                               cmd
             FI::FB_IMAGE_INDEX_SPEC_ACCUM_COLOR,
             FI::FB_IMAGE_INDEX_INDIR_ACCUM,
         };
-        framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+        framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
         vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, antifirefly );
@@ -186,7 +190,8 @@ void RTGL1::Denoiser::Denoise( VkCommandBuffer                               cmd
         FI fs[] = { FI::FB_IMAGE_INDEX_DIFF_ACCUM_COLOR,
                     FI::FB_IMAGE_INDEX_DIFF_ACCUM_MOMENTS,
                     FI::FB_IMAGE_INDEX_ACCUM_HISTORY_LENGTH };
-        framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+        framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
         vkCmdBindPipeline( cmd, VK_PIPELINE_BIND_POINT_COMPUTE, varianceEstimation );
         vkCmdDispatch( cmd, wgCountX, wgCountY, 1 );
@@ -213,7 +218,8 @@ void RTGL1::Denoiser::Denoise( VkCommandBuffer                               cmd
 
                             FI::FB_IMAGE_INDEX_METALLIC_ROUGHNESS };
 
-                framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+                framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
                 break;
             }
             case 1: {
@@ -223,7 +229,8 @@ void RTGL1::Denoiser::Denoise( VkCommandBuffer                               cmd
                             // on iteration 0 prefiltered variance was calculated
                             FI::FB_IMAGE_INDEX_ATROUS_FILTERED_VARIANCE };
 
-                framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+                framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
                 break;
             }
             case 2: {
@@ -231,7 +238,8 @@ void RTGL1::Denoiser::Denoise( VkCommandBuffer                               cmd
                             FI::FB_IMAGE_INDEX_SPEC_PING_COLOR,
                             FI::FB_IMAGE_INDEX_INDIR_PING };
 
-                framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+                framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
                 break;
             }
             case 3: {
@@ -240,7 +248,8 @@ void RTGL1::Denoiser::Denoise( VkCommandBuffer                               cmd
                             FI::FB_IMAGE_INDEX_INDIR_PONG,
                             FI::FB_IMAGE_INDEX_THROUGHPUT };
 
-                framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+                framebuffers->BarrierMultiple(
+                    cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
                 break;
             }
             default: {

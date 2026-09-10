@@ -20,6 +20,13 @@
 
 #include "AutoBuffer.h"
 
+#include <array>
+
+namespace
+{
+constexpr uint32_t MAX_COPY_REGIONS = 64;
+}
+
 RTGL1::AutoBuffer::AutoBuffer( std::shared_ptr< MemoryAllocator > _allocator )
     : allocator( std::move( _allocator ) ), mapped{}
 {
@@ -157,9 +164,12 @@ void RTGL1::AutoBuffer::CopyFromStaging( VkCommandBuffer     cmd,
                      copyInfos );
 
     // TODO: remove a barrier kludge
+    std::array< VkBufferMemoryBarrier, MAX_COPY_REGIONS > barriers = {};
+    assert( copyInfosCount <= barriers.size() );
+
     for( uint32_t i = 0; i < copyInfosCount; ++i )
     {
-        VkBufferMemoryBarrier barrier = {
+        barriers[ i ] = {
             .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
             .srcAccessMask       = VK_ACCESS_MEMORY_WRITE_BIT,
             .dstAccessMask       = VK_ACCESS_MEMORY_READ_BIT,
@@ -169,18 +179,18 @@ void RTGL1::AutoBuffer::CopyFromStaging( VkCommandBuffer     cmd,
             .offset              = copyInfos[ i ].dstOffset,
             .size                = copyInfos[ i ].size,
         };
-
-        vkCmdPipelineBarrier( cmd,
-                              VK_PIPELINE_STAGE_TRANSFER_BIT,
-                              VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
-                              0,
-                              0,
-                              nullptr,
-                              1,
-                              &barrier,
-                              0,
-                              nullptr );
     }
+
+    vkCmdPipelineBarrier( cmd,
+                          VK_PIPELINE_STAGE_TRANSFER_BIT,
+                          VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                          0,
+                          0,
+                          nullptr,
+                          copyInfosCount,
+                          barriers.data(),
+                          0,
+                          nullptr );
 }
 
 void* RTGL1::AutoBuffer::GetMapped( uint32_t frameIndex )

@@ -20,6 +20,16 @@
 
 #include "ASComponent.h"
 
+#include <algorithm>
+
+namespace
+{
+VkDeviceSize GetASBufferCapacity( VkDeviceSize requiredSize )
+{
+    return std::max( requiredSize, requiredSize + requiredSize / 4 + ( 1 << 16 ) );
+}
+}
+
 RTGL1::ASComponent::ASComponent( VkDevice _device, const char* _debugName )
     : device( _device ), as( VK_NULL_HANDLE ), debugName( _debugName )
 {
@@ -66,21 +76,26 @@ void RTGL1::ASComponent::Destroy()
         svkDestroyAccelerationStructureKHR( device, as, nullptr );
         as = VK_NULL_HANDLE;
     }
+
+    asAddress = 0;
 }
 
-void RTGL1::ASComponent::RecreateIfNotValid(
+bool RTGL1::ASComponent::RecreateIfNotValid(
     const VkAccelerationStructureBuildSizesInfoKHR& buildSizes,
     const std::shared_ptr< MemoryAllocator >&       allocator )
 {
-    if( !IsValid( buildSizes ) )
+    if( IsValid( buildSizes ) )
     {
-        // destroy
-        Destroy();
-
-        // create
-        CreateBuffer( allocator, buildSizes.accelerationStructureSize );
-        CreateAS( buildSizes.accelerationStructureSize );
+        return false;
     }
+
+    // destroy
+    Destroy();
+
+    // create
+    CreateBuffer( allocator, GetASBufferCapacity( buildSizes.accelerationStructureSize ) );
+    CreateAS( buildSizes.accelerationStructureSize );
+    return true;
 }
 
 void RTGL1::BLASComponent::CreateAS( VkDeviceSize size )
@@ -122,6 +137,23 @@ bool RTGL1::ASComponent::IsValid( const VkAccelerationStructureBuildSizesInfoKHR
     return buffer.IsInitted() && buffer.GetSize() >= buildSizes.accelerationStructureSize;
 }
 
+bool RTGL1::ASComponent::IsBuildSizesCached( uint64_t signature ) const
+{
+    return signature != 0 && cachedBuildSizesSignature == signature;
+}
+
+const VkAccelerationStructureBuildSizesInfoKHR& RTGL1::ASComponent::GetCachedBuildSizes() const
+{
+    return cachedBuildSizes;
+}
+
+void RTGL1::ASComponent::SetCachedBuildSizes(
+    uint64_t signature, const VkAccelerationStructureBuildSizesInfoKHR& sizes )
+{
+    cachedBuildSizesSignature = signature;
+    cachedBuildSizes          = sizes;
+}
+
 VkAccelerationStructureKHR RTGL1::ASComponent::GetAS() const
 {
     return as;
@@ -130,7 +162,13 @@ VkAccelerationStructureKHR RTGL1::ASComponent::GetAS() const
 VkDeviceAddress RTGL1::ASComponent::GetASAddress() const
 {
     assert( buffer.IsInitted() );
-    return GetASAddress( as );
+
+    if( asAddress == 0 )
+    {
+        asAddress = GetASAddress( as );
+    }
+
+    return asAddress;
 }
 
 VkDeviceAddress RTGL1::ASComponent::GetASAddress( VkAccelerationStructureKHR as ) const
@@ -173,4 +211,89 @@ bool RTGL1::BLASComponent::IsEmpty() const
 uint32_t RTGL1::BLASComponent::GetGeomCount() const
 {
     return geomCount;
+}
+
+namespace
+{
+bool SameTriangleGeometry( const VkAccelerationStructureGeometryKHR& a,
+                           const VkAccelerationStructureGeometryKHR& b )
+{
+    if( a.geometryType != b.geometryType || a.flags != b.flags )
+    {
+        return false;
+    }
+    if( a.geometryType != VK_GEOMETRY_TYPE_TRIANGLES_KHR )
+    {
+        return false;
+    }
+
+    const auto& ta = a.geometry.triangles;
+    const auto& tb = b.geometry.triangles;
+
+    return ta.vertexFormat == tb.vertexFormat &&
+           ta.vertexData.deviceAddress == tb.vertexData.deviceAddress &&
+           ta.vertexStride == tb.vertexStride && ta.maxVertex == tb.maxVertex &&
+           ta.indexType == tb.indexType && ta.indexData.deviceAddress == tb.indexData.deviceAddress &&
+           ta.transformData.deviceAddress == tb.transformData.deviceAddress;
+}
+
+bool SameRange( const VkAccelerationStructureBuildRangeInfoKHR& a,
+                const VkAccelerationStructureBuildRangeInfoKHR& b )
+{
+    return a.primitiveCount == b.primitiveCount && a.primitiveOffset == b.primitiveOffset &&
+           a.firstVertex == b.firstVertex && a.transformOffset == b.transformOffset;
+}
+}
+
+bool RTGL1::BLASComponent::CanRefit(
+    const std::vector< VkAccelerationStructureGeometryKHR >&      geometries,
+    const std::vector< VkAccelerationStructureBuildRangeInfoKHR >& ranges ) const
+{
+    if( !hasLastBuild || geometries.size() != lastGeometries.size() ||
+        ranges.size() != lastRanges.size() )
+    {
+        return false;
+    }
+
+    for( size_t i = 0; i < geometries.size(); i++ )
+    {
+        if( !SameTriangleGeometry( geometries[ i ], lastGeometries[ i ] ) )
+        {
+            return false;
+        }
+    }
+
+    for( size_t i = 0; i < ranges.size(); i++ )
+    {
+        if( !SameRange( ranges[ i ], lastRanges[ i ] ) )
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+uint32_t RTGL1::BLASComponent::GetFramesSinceFullBuild() const
+{
+    return framesSinceFullBuild;
+}
+
+void RTGL1::BLASComponent::RecordBuild(
+    const std::vector< VkAccelerationStructureGeometryKHR >&      geometries,
+    const std::vector< VkAccelerationStructureBuildRangeInfoKHR >& ranges,
+    bool                                                           wasFullBuild )
+{
+    lastGeometries.assign( geometries.begin(), geometries.end() );
+    lastRanges.assign( ranges.begin(), ranges.end() );
+    hasLastBuild = true;
+
+    if( wasFullBuild )
+    {
+        framesSinceFullBuild = 0;
+    }
+    else
+    {
+        framesSinceFullBuild++;
+    }
 }

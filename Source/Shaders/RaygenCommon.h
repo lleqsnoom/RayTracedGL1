@@ -508,9 +508,10 @@ Reservoir selectLight_Direct(const ivec2 pix, uint seed, const Surface surf, con
     #define SPATIAL_RADIUS 30
 
     const ivec3 chRenderArea = getCheckerboardedRenderArea(pix); // assuming that pix is checkerboarded
-    const float motionZ = texelFetch(framebufMotion_Sampler, pix, 0).z;
+    const vec4 motion = texelFetch(framebufMotion_Sampler, pix, 0);
+    const float motionZ = motion.z;
     const float depthCur = texelFetch(framebufDepthWorld_Sampler, pix, 0).r;
-    const vec2 posPrev = getPrevScreenPos(framebufMotion_Sampler, pix);
+    const vec2 posPrev = getPrevScreenPos(motion.xy, pix);
     uint salt = RANDOM_SALT_LIGHT_CHOOSE_DIRECT_BASE;
 
 

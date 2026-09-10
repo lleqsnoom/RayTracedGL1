@@ -20,6 +20,9 @@
 
 #pragma once
 
+#include <string>
+#include <string_view>
+
 #include "Hashmap/robin_hood.h"
 
 namespace rgl
@@ -30,5 +33,35 @@ using unordered_map = robin_hood::unordered_map< Key, T >;
 
 template< typename Key >
 using unordered_set = robin_hood::unordered_set< Key >;
+
+// Transparent string hashing/equality, so a std::string-keyed map can be probed with a
+// std::string_view or const char* without constructing a temporary std::string.
+// robin_hood::hash<std::string> and hash<std::string_view> both use hash_bytes over the
+// character range, so hashes agree for equal content.
+struct StringHash
+{
+    using is_transparent = void;
+
+    size_t operator()( std::string_view sv ) const noexcept
+    {
+        return robin_hood::hash< std::string_view >{}( sv );
+    }
+};
+
+struct StringEqual
+{
+    using is_transparent = void;
+
+    template< typename A, typename B >
+    bool operator()( const A& a, const B& b ) const noexcept
+    {
+        return std::string_view( a ) == std::string_view( b );
+    }
+};
+
+template< typename T >
+using string_map = robin_hood::unordered_map< std::string, T, StringHash, StringEqual >;
+
+using string_set = robin_hood::unordered_set< std::string, StringHash, StringEqual >;
 
 }

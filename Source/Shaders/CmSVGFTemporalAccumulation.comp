@@ -114,7 +114,8 @@ void main()
     const vec4 unfilteredRayInfo= texelFetch(framebufViewDirection_Sampler, pix, 0);
 
     const ivec3 chRenderArea    = getCheckerboardedRenderArea(              pix);
-    const float motionZ         = texelFetch(framebufMotion_Sampler,        pix, 0).z;
+    const vec4  motion          = texelFetch(framebufMotion_Sampler,        pix, 0);
+    const float motionZ         = motion.z;
     const float depth           = texelFetch(framebufDepthWorld_Sampler,    pix, 0).r;
     const vec3 normal           = texelFetchNormal(                         pix);
     const float roughness       = texelFetch(framebufMetallicRoughness_Sampler, pix, 0).g;
@@ -125,7 +126,7 @@ void main()
 
     ivec2 pixPrev; vec2 subPix;
     {
-        const vec2 posPrev = getPrevScreenPos(framebufMotion_Sampler, pix);
+        const vec2 posPrev = getPrevScreenPos(motion.xy, pix);
 
         pixPrev = ivec2(floor(posPrev - 0.5));
         subPix = (posPrev - 0.5) - floor(posPrev - 0.5);

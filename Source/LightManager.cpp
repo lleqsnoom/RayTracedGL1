@@ -59,12 +59,6 @@ RTGL1::LightManager::LightManager( VkDevice                            _device,
                           VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                           "Lights buffer" );
 
-    lightsBuffer_Prev.Init( *_allocator,
-                            sizeof( ShLightEncoded ) * LIGHT_ARRAY_MAX_SIZE,
-                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                            "Lights buffer - prev" );
-
     for( auto& buf : initialLightsGrid )
     {
         buf.Init( *_allocator,
@@ -78,11 +72,6 @@ RTGL1::LightManager::LightManager( VkDevice                            _device,
     prevToCurIndex->Create( sizeof( uint32_t ) * LIGHT_ARRAY_MAX_SIZE,
                             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                             "Lights buffer - prev to cur" );
-
-    curToPrevIndex = std::make_shared< AutoBuffer >( _allocator );
-    curToPrevIndex->Create( sizeof( uint32_t ) * LIGHT_ARRAY_MAX_SIZE,
-                            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                            "Lights buffer - cur to prev" );
 
     CreateDescriptors();
 }
@@ -186,6 +175,32 @@ RTGL1::ShLightEncoded EncodeAsTriangleLight( const RgPolygonalLightUploadInfo& i
     lt.data_1[ 3 ] = unnormalizedNormal.data[ 1 ];
     lt.data_2[ 3 ] = unnormalizedNormal.data[ 2 ];
 
+    RgFloat3D triCenter = {};
+    for( int i = 0; i < 3; i++ )
+    {
+        triCenter.data[ i ] = ( info.positions[ 0 ].data[ i ] + info.positions[ 1 ].data[ i ] +
+                                info.positions[ 2 ].data[ i ] ) / 3.0f;
+    }
+
+    RgFloat3D d0 = {}, d1 = {}, d2 = {};
+    for( int i = 0; i < 3; i++ )
+    {
+        d0.data[ i ] = info.positions[ 0 ].data[ i ] - triCenter.data[ i ];
+        d1.data[ i ] = info.positions[ 1 ].data[ i ] - triCenter.data[ i ];
+        d2.data[ i ] = info.positions[ 2 ].data[ i ] - triCenter.data[ i ];
+    }
+    const float aprxTriRadius = ( RTGL1::Utils::Length( d0.data ) +
+                                  RTGL1::Utils::Length( d1.data ) +
+                                  RTGL1::Utils::Length( d2.data ) ) / 3.0f;
+
+    for( int i = 0; i < 3; i++ )
+    {
+        lt.precomputed_0[ i ] = triCenter.data[ i ];
+        lt.precomputed_1[ i ] = n.data[ i ];
+    }
+    lt.precomputed_0[ 3 ] = aprxTriRadius;
+    lt.precomputed_1[ 3 ] = area;
+
     return lt;
 }
 
@@ -249,24 +264,9 @@ void RTGL1::LightManager::PrepareForFrame( VkCommandBuffer cmd, uint32_t frameIn
     regLightCount = 0;
     dirLightCount = 0;
 
-    // TODO: similar system to just swap desc sets, instead of actual copying
-    if( GetLightArrayEnd( regLightCount_Prev, dirLightCount_Prev ) > 0 )
-    {
-        VkBufferCopy info = {
-            .srcOffset = 0,
-            .dstOffset = 0,
-            .size      = GetLightArrayEnd( regLightCount_Prev, dirLightCount_Prev ) *
-                    sizeof( ShLightEncoded ),
-        };
-
-        vkCmdCopyBuffer(
-            cmd, lightsBuffer->GetDeviceLocal(), lightsBuffer_Prev.GetBuffer(), 1, &info );
-    }
-
     memset( prevToCurIndex->GetMapped( frameIndex ),
             0xFF,
             sizeof( uint32_t ) * GetLightArrayEnd( regLightCount_Prev, dirLightCount_Prev ) );
-    // no need to clear curToPrevIndex, as it'll be filled in the cur frame
 
     uniqueIDToArrayIndex[ frameIndex ].clear();
 }
@@ -280,12 +280,6 @@ void RTGL1::LightManager::Reset()
                 sizeof( uint32_t ) *
                     std::max( GetLightArrayEnd( regLightCount, dirLightCount ),
                               GetLightArrayEnd( regLightCount_Prev, dirLightCount_Prev ) ) );
-        memset( curToPrevIndex->GetMapped( i ),
-                0xFF,
-                sizeof( uint32_t ) *
-                    std::max( GetLightArrayEnd( regLightCount, dirLightCount ),
-                              GetLightArrayEnd( regLightCount_Prev, dirLightCount_Prev ) ) );
-
         uniqueIDToArrayIndex[ i ].clear();
     }
 
@@ -458,8 +452,6 @@ void RTGL1::LightManager::SubmitForFrame( VkCommandBuffer cmd, uint32_t frameInd
         cmd,
         frameIndex,
         sizeof( uint32_t ) * GetLightArrayEnd( regLightCount_Prev, dirLightCount_Prev ) );
-    curToPrevIndex->CopyFromStaging(
-        cmd, frameIndex, sizeof( uint32_t ) * GetLightArrayEnd( regLightCount, dirLightCount ) );
 
     // should be used when buffers changed
     if( needDescSetUpdate[ frameIndex ] )
@@ -523,16 +515,11 @@ void RTGL1::LightManager::FillMatchPrev( uint32_t        curFrameIndex,
 
     auto* prev2cur = prevToCurIndex->GetMappedAs< uint32_t* >( curFrameIndex );
     prev2cur[ lightIndexInPrevFrame.GetArrayIndex() ] = lightIndexInCurFrame.GetArrayIndex();
-
-    auto* cur2prev = curToPrevIndex->GetMappedAs< uint32_t* >( curFrameIndex );
-    cur2prev[ lightIndexInCurFrame.GetArrayIndex() ] = lightIndexInPrevFrame.GetArrayIndex();
 }
 
 constexpr uint32_t BINDINGS[] = {
     BINDING_LIGHT_SOURCES,
-    BINDING_LIGHT_SOURCES_PREV,
     BINDING_LIGHT_SOURCES_INDEX_PREV_TO_CUR,
-    BINDING_LIGHT_SOURCES_INDEX_CUR_TO_PREV,
     BINDING_INITIAL_LIGHTS_GRID,
     BINDING_INITIAL_LIGHTS_GRID_PREV,
 };
@@ -544,11 +531,8 @@ void RTGL1::LightManager::CreateDescriptors()
 
         for( uint32_t i = 0; i < std::size( BINDINGS ); i++ )
         {
-            uint32_t bnd = BINDINGS[ i ];
-            assert( i == bnd );
-
-            VkDescriptorSetLayoutBinding& b = bindings[ bnd ];
-            b.binding                       = bnd;
+            VkDescriptorSetLayoutBinding& b = bindings[ i ];
+            b.binding                       = BINDINGS[ i ];
             b.descriptorType                = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             b.descriptorCount               = 1;
             b.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT;
@@ -615,9 +599,7 @@ void RTGL1::LightManager::UpdateDescriptors( uint32_t frameIndex )
 {
     const VkBuffer buffers[] = {
         lightsBuffer->GetDeviceLocal(),
-        lightsBuffer_Prev.GetBuffer(),
         prevToCurIndex->GetDeviceLocal(),
-        curToPrevIndex->GetDeviceLocal(),
         initialLightsGrid[ frameIndex ].GetBuffer(),
         initialLightsGrid[ Utils::GetPreviousByModulo( frameIndex, MAX_FRAMES_IN_FLIGHT ) ]
             .GetBuffer(),
@@ -629,25 +611,20 @@ void RTGL1::LightManager::UpdateDescriptors( uint32_t frameIndex )
 
     for( uint32_t i = 0; i < std::size( BINDINGS ); i++ )
     {
-        uint32_t bnd = BINDINGS[ i ];
-        // 'buffers' should be actually a map (binding->buffer), but a plain array works too, if
-        // this is true
-        assert( i == bnd );
-
-        bufs[ bnd ] = VkDescriptorBufferInfo{
-            .buffer = buffers[ bnd ],
+        bufs[ i ] = VkDescriptorBufferInfo{
+            .buffer = buffers[ i ],
             .offset = 0,
             .range  = VK_WHOLE_SIZE,
         };
 
-        wrts[ bnd ] = VkWriteDescriptorSet{
+        wrts[ i ] = VkWriteDescriptorSet{
             .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             .dstSet          = descSets[ frameIndex ],
-            .dstBinding      = bnd,
+            .dstBinding      = BINDINGS[ i ],
             .dstArrayElement = 0,
             .descriptorCount = 1,
             .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .pBufferInfo     = &bufs[ bnd ],
+            .pBufferInfo     = &bufs[ i ],
         };
     }
 

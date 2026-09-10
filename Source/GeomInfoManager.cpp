@@ -230,6 +230,8 @@ bool RTGL1::GeomInfoManager::CopyFromStaging( VkCommandBuffer cmd,
 {
     CmdLabel label( cmd, "Copying geom infos" );
 
+    bool copiedStatic = false;
+
     {
         VkBufferCopy          copyInfos[ MAX_TOP_LEVEL_INSTANCE_COUNT ];
         VkBufferMemoryBarrier barriers[ MAX_TOP_LEVEL_INSTANCE_COUNT ];
@@ -238,6 +240,12 @@ bool RTGL1::GeomInfoManager::CopyFromStaging( VkCommandBuffer cmd,
 
         VertexCollectorFilterTypeFlags_IterateOverFlags(
             [ & ]( VertexCollectorFilterTypeFlags flags ) {
+                if( !( flags & VertexCollectorFilterTypeFlagBits::CF_DYNAMIC ) &&
+                    staticGroupsCopied[ frameIndex ] )
+                {
+                    return;
+                }
+
                 //
                 const auto groupOffsetInElements =
                     VertexCollectorFilterTypeFlags_GetOffsetInGlobalArray( flags );
@@ -283,6 +291,11 @@ bool RTGL1::GeomInfoManager::CopyFromStaging( VkCommandBuffer cmd,
                     .size                = copyInfos[ infoCount ].size,
                 };
 
+                if( !( flags & VertexCollectorFilterTypeFlagBits::CF_DYNAMIC ) )
+                {
+                    copiedStatic = true;
+                }
+
                 infoCount++;
             } );
 
@@ -317,6 +330,12 @@ bool RTGL1::GeomInfoManager::CopyFromStaging( VkCommandBuffer cmd,
 
         VertexCollectorFilterTypeFlags_IterateOverFlags(
             [ & ]( VertexCollectorFilterTypeFlags flags ) {
+                if( !( flags & VertexCollectorFilterTypeFlagBits::CF_DYNAMIC ) &&
+                    staticGroupsCopied[ frameIndex ] )
+                {
+                    return;
+                }
+
                 //
                 const auto groupOffsetInBytes =
                     VertexCollectorFilterTypeFlags_GetOffsetInGlobalArray( flags ) *
@@ -345,6 +364,11 @@ bool RTGL1::GeomInfoManager::CopyFromStaging( VkCommandBuffer cmd,
                         .size                = copyInfos[ infoCount ].size,
                     };
 
+                    if( !( flags & VertexCollectorFilterTypeFlagBits::CF_DYNAMIC ) )
+                    {
+                        copiedStatic = true;
+                    }
+
                     infoCount++;
                 }
             } );
@@ -370,6 +394,11 @@ bool RTGL1::GeomInfoManager::CopyFromStaging( VkCommandBuffer cmd,
                                   0,
                                   nullptr );
         }
+    }
+
+    if( copiedStatic )
+    {
+        staticGroupsCopied[ frameIndex ] = true;
     }
 
     return true;
@@ -423,6 +452,7 @@ void RTGL1::GeomInfoManager::ResetOnlyStatic()
             } );
 
         mappedBufferRegionsCount[ frameIndex ] = RecalculateCount( frameIndex );
+        staticGroupsCopied[ frameIndex ]          = false;
     }
 }
 

@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <array>
+
 #include "Common.h"
 #include "Containers.h"
 #include "ShaderManager.h"
@@ -73,8 +75,9 @@ private:
     VkPipelineShaderStageCreateInfo vertShaderStage;
     VkPipelineShaderStageCreateInfo fragShaderStage;
 
-    rgl::unordered_map< PipelineStateFlags, VkPipeline > pipelines;
-    VkPipelineCache                                      pipelineCache;
+    // PipelineStateFlags has 6 bits -> dense index 0..63; VK_NULL_HANDLE means "not created"
+    std::array< VkPipeline, 64 > pipelines{};
+    VkPipelineCache              pipelineCache;
 
     std::optional< VkViewport > nonDynamicViewport;
     std::optional< VkRect2D >   nonDynamicScissors;

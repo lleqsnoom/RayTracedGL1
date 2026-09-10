@@ -44,18 +44,22 @@ VkDeviceAddress ScratchBuffer::GetScratchAddress(VkDeviceSize scratchSize)
     // find chunk with appropriate size
     for (auto &c : chunks)
     {
-        if (alignedSize < c.buffer.GetSize() - c.currentOffset)
+        const VkDeviceSize remaining = c.buffer.GetSize() - (VkDeviceSize)c.currentOffset;
+        if (alignedSize <= remaining)
         {
             VkDeviceAddress address = c.buffer.GetAddress() + c.currentOffset;
 
-            c.currentOffset += alignedSize;
+            c.currentOffset += (uint32_t)alignedSize;
             return address;
         }
     }
 
     // couldn't find chunk, create new one
     AddChunk(std::max(SCRATCH_CHUNK_BUFFER_SIZE, alignedSize));
-    return chunks.back().buffer.GetAddress();
+
+    auto &c = chunks.back();
+    c.currentOffset = (uint32_t)alignedSize;
+    return c.buffer.GetAddress();
 }
 
 void ScratchBuffer::Reset()

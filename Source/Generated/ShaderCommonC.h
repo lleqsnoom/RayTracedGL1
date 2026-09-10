@@ -301,6 +301,8 @@ struct ShGlobalUniform
     int32_t instanceGeomCount[48];
     float viewProjCubemap[96];
     float skyCubemapRotationTransform[16];
+    float waterExtinction[4];
+    float acidExtinction[4];
 };
 
 struct ShGeometryInstance
@@ -354,6 +356,8 @@ struct ShLightEncoded
     float data_0[4];
     float data_1[4];
     float data_2[4];
+    float precomputed_0[4];
+    float precomputed_1[4];
 };
 
 struct ShLightInCell

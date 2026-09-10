@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include <array>
 #include <vector>
 
 #include "Common.h"
@@ -86,8 +87,9 @@ private:
 private:
     VkDevice device;
 
-    rgl::unordered_map< uint32_t, VkSampler > samplers;
-    std::vector< VkSampler >                  samplersToDelete[ MAX_FRAMES_IN_FLIGHT ];
+    // dense by SamplerManager index (filter bits 0-1, U bits 2-4, V bits 5-7; max index 182)
+    std::array< VkSampler, 256 > samplers{};
+    std::vector< VkSampler >     samplersToDelete[ MAX_FRAMES_IN_FLIGHT ];
     float                                     mipLodBias;
     uint32_t                                  anisotropy;
     bool                                      forceMinificationFilterLinear;

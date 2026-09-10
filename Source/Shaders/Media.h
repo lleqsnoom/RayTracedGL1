@@ -49,12 +49,11 @@ vec3 getMediaTransmittance( uint media, float distance )
 
     if( media == MEDIA_TYPE_WATER )
     {
-        extinction = -log( globalUniform.waterColorAndDensity.rgb );
+        extinction = globalUniform.waterExtinction.rgb;
     }
     else if( media == MEDIA_TYPE_ACID )
     {
-        extinction = -log( globalUniform.acidColorAndDensity.rgb );
-        extinction *= max(1.0, sqrt( globalUniform.acidColorAndDensity.a ) );
+        extinction = globalUniform.acidExtinction.rgb;
     }
 
     return exp( -distance * extinction );
