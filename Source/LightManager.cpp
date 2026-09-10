@@ -175,6 +175,32 @@ RTGL1::ShLightEncoded EncodeAsTriangleLight( const RgPolygonalLightUploadInfo& i
     lt.data_1[ 3 ] = unnormalizedNormal.data[ 1 ];
     lt.data_2[ 3 ] = unnormalizedNormal.data[ 2 ];
 
+    RgFloat3D triCenter = {};
+    for( int i = 0; i < 3; i++ )
+    {
+        triCenter.data[ i ] = ( info.positions[ 0 ].data[ i ] + info.positions[ 1 ].data[ i ] +
+                                info.positions[ 2 ].data[ i ] ) / 3.0f;
+    }
+
+    RgFloat3D d0 = {}, d1 = {}, d2 = {};
+    for( int i = 0; i < 3; i++ )
+    {
+        d0.data[ i ] = info.positions[ 0 ].data[ i ] - triCenter.data[ i ];
+        d1.data[ i ] = info.positions[ 1 ].data[ i ] - triCenter.data[ i ];
+        d2.data[ i ] = info.positions[ 2 ].data[ i ] - triCenter.data[ i ];
+    }
+    const float aprxTriRadius = ( RTGL1::Utils::Length( d0.data ) +
+                                  RTGL1::Utils::Length( d1.data ) +
+                                  RTGL1::Utils::Length( d2.data ) ) / 3.0f;
+
+    for( int i = 0; i < 3; i++ )
+    {
+        lt.precomputed_0[ i ] = triCenter.data[ i ];
+        lt.precomputed_1[ i ] = n.data[ i ];
+    }
+    lt.precomputed_0[ 3 ] = aprxTriRadius;
+    lt.precomputed_1[ 3 ] = area;
+
     return lt;
 }
 

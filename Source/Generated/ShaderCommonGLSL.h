@@ -351,6 +351,8 @@ struct ShLightEncoded
     vec4 data_0;
     vec4 data_1;
     vec4 data_2;
+    vec4 precomputed_0;
+    vec4 precomputed_1;
 };
 
 struct ShLightInCell

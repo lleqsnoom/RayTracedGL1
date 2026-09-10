@@ -680,6 +680,10 @@ LIGHT_ENCODED_STRUCT = [
     (TYPE_FLOAT32,      4,      "data_0",               1),
     (TYPE_FLOAT32,      4,      "data_1",               1),
     (TYPE_FLOAT32,      4,      "data_2",               1),
+    # per-light constants precomputed on the CPU: (triCenter, aprxTriRadius) and
+    # (normalizedNormal, area) for triangle lights
+    (TYPE_FLOAT32,      4,      "precomputed_0",        1),
+    (TYPE_FLOAT32,      4,      "precomputed_1",        1),
 ]
 
 # TODO: light index / target pdf - 16 bits

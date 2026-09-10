@@ -40,6 +40,8 @@ struct TriangleLight
     vec3 position[3];
     vec3 normal;
     float area;
+    vec3 center;
+    float aprxTriRadius;
     vec3 color;
 };
 
@@ -81,15 +83,11 @@ TriangleLight decodeAsTriangleLight(const ShLightEncoded encoded)
     l.position[2] = encoded.data_2.xyz;
     l.color = encoded.color;
 
-    l.normal = vec3(
-        encoded.data_0.w, 
-        encoded.data_1.w, 
-        encoded.data_2.w
-    );
-    // len is guaranteed to be > 0.0
-    float len = length(l.normal);
-    l.normal /= len;
-    l.area = len * 0.5;
+    // precomputed on the CPU
+    l.center        = encoded.precomputed_0.xyz;
+    l.aprxTriRadius = encoded.precomputed_0.w;
+    l.normal        = encoded.precomputed_1.xyz;
+    l.area          = encoded.precomputed_1.w;
 
     return l;
 }
@@ -179,20 +177,10 @@ float getSphereLightWeight(const SphereLight l, const vec3 cellCenter, float cel
 
 float getTriangleLightWeight(const TriangleLight l, const vec3 cellCenter, float cellRadius)
 {
-    const vec3 triCenter = 
-        l.position[0] / 3.0 +
-        l.position[1] / 3.0 +
-        l.position[2] / 3.0;
-
-    const float aprxTriRadius = 
-        length(l.position[0] - triCenter) / 3.0 +
-        length(l.position[1] - triCenter) / 3.0 +
-        length(l.position[2] - triCenter) / 3.0;
-
     return 
         getLightColorWeight(l.color) * 
-        calcSolidAngleForSphere(aprxTriRadius, max(length(triCenter - cellCenter), cellRadius)) *
-        isSphereInFront(l.normal, triCenter, cellCenter, cellRadius);
+        calcSolidAngleForSphere(l.aprxTriRadius, max(length(l.center - cellCenter), cellRadius)) *
+        isSphereInFront(l.normal, l.center, cellCenter, cellRadius);
 }
 
 float getSpotLightWeight(const SpotLight l, const vec3 cellCenter, float cellRadius)
