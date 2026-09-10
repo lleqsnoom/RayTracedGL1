@@ -260,7 +260,13 @@ void atrous0(
             const float n_n = max(0.0, dotEnc(center.encNormal, other.encNormal));
 
             const float w_z = abs(center.depth - other.depth) / max(gradDepth * (abs(xx) + abs(yy)), 0.01);
-            const float w_n = pow(n_n, 128.0);
+            float n_n_2 = n_n * n_n;
+            float n_n_4 = n_n_2 * n_n_2;
+            float n_n_8 = n_n_4 * n_n_4;
+            float n_n_16 = n_n_8 * n_n_8;
+            float n_n_32 = n_n_16 * n_n_16;
+            float n_n_64 = n_n_32 * n_n_32;
+            const float w_n = n_n_64 * n_n_64;
             const float w_l = abs(l - l_q) * wLumMultiplier;
 
             // larger weight if roughness difference is small
