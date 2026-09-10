@@ -274,9 +274,10 @@ void main()
 
     // assuming that pix is checkerboarded
     const ivec3 chRenderArea = getCheckerboardedRenderArea( pix );
-    const float motionZ           = texelFetch( framebufMotion_Sampler, pix, 0 ).z;
+    const vec4  motion            = texelFetch( framebufMotion_Sampler, pix, 0 );
+    const float motionZ           = motion.z;
     const float depthCur          = texelFetch( framebufDepthWorld_Sampler, pix, 0 ).r;
-    const vec2  posPrev           = getPrevScreenPos( framebufMotion_Sampler, pix );
+    const vec2  posPrev           = getPrevScreenPos( motion.xy, pix );
 
     int spatialSamplesCount = int( SPATIAL_SAMPLES_INDIR * getDiffuseWeight( surf.roughness ) );
 
