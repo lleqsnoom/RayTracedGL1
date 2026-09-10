@@ -65,6 +65,7 @@ protected:
 
     Buffer                     buffer;
     VkAccelerationStructureKHR as;
+    mutable VkDeviceAddress    asAddress = 0;
 
     const char*                debugName;
 };

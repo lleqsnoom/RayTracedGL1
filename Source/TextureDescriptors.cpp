@@ -219,6 +219,11 @@ void TextureDescriptors::ResetTextureDesc( uint32_t frameIndex, uint32_t texture
 
 void TextureDescriptors::FlushDescWrites()
 {
+    if( currentWriteCount == 0 )
+    {
+        return;
+    }
+
     vkUpdateDescriptorSets( device, currentWriteCount, writeInfos.data(), 0, nullptr );
     currentWriteCount = 0;
 }

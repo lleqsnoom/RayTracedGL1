@@ -66,6 +66,8 @@ void RTGL1::ASComponent::Destroy()
         svkDestroyAccelerationStructureKHR( device, as, nullptr );
         as = VK_NULL_HANDLE;
     }
+
+    asAddress = 0;
 }
 
 void RTGL1::ASComponent::RecreateIfNotValid(
@@ -130,7 +132,13 @@ VkAccelerationStructureKHR RTGL1::ASComponent::GetAS() const
 VkDeviceAddress RTGL1::ASComponent::GetASAddress() const
 {
     assert( buffer.IsInitted() );
-    return GetASAddress( as );
+
+    if( asAddress == 0 )
+    {
+        asAddress = GetASAddress( as );
+    }
+
+    return asAddress;
 }
 
 VkDeviceAddress RTGL1::ASComponent::GetASAddress( VkAccelerationStructureKHR as ) const
