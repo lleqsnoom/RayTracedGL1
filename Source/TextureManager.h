@@ -211,6 +211,8 @@ private:
     std::vector< Texture > textures;
     // highest texture slot index ever used; slots above it are never referenced by materials
     uint32_t               highestUsedTextureIndex = 0;
+    // per-slot reference count for sharing uploaded textures between materials
+    std::vector< uint32_t > textureRefCount;
     // Textures are not destroyed immediately, but only when they are not in use anymore
     std::vector< Texture >               texturesToDestroy[ MAX_FRAMES_IN_FLIGHT ];
     std::vector< std::filesystem::path > texturesToReload;
@@ -218,6 +220,9 @@ private:
     // TODO: string keys pool
     rgl::string_map< Material > materials;
     rgl::string_set            importedMaterials;
+
+    // source file path -> texture slot, for de-duplicating identical uploads
+    rgl::string_map< uint32_t > filepathToTextureIndex;
 
     uint32_t waterNormalTextureIndex;
     uint32_t dirtMaskTextureIndex;

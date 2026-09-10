@@ -108,6 +108,7 @@ TextureManager::TextureManager( VkDevice                                _device,
     textureUploader = std::make_shared< TextureUploader >( device, memAllocator );
 
     textures.resize( TEXTURE_COUNT_MAX );
+    textureRefCount.resize( TEXTURE_COUNT_MAX, 0 );
 
     // submit cmd to create empty texture
     {
@@ -309,6 +310,12 @@ void TextureManager::TryHotReload( VkCommandBuffer cmd, uint32_t frameIndex )
 
             if( sameWithoutExt )
             {
+                if( textureRefCount[ uint32_t( std::distance( textures.begin(), slot ) ) ] > 1 )
+                {
+                    // shared texture: reloading one slot would affect other materials
+                    continue;
+                }
+
                 TextureOverrides ovrd(
                     newFilePath, Utils::IsSRGB( slot->format ), AnyImageLoader() );
 
@@ -316,6 +323,12 @@ void TextureManager::TryHotReload( VkCommandBuffer cmd, uint32_t frameIndex )
                 {
                     const auto prevSampler   = slot->samplerHandle;
                     const auto prevSwizzling = slot->swizzling;
+
+                    const std::string oldKey = slot->filepath.string();
+                    if( !oldKey.empty() )
+                    {
+                        filepathToTextureIndex.erase( oldKey );
+                    }
 
                     AddToBeDestroyed( frameIndex, *slot );
 
@@ -592,8 +605,18 @@ uint32_t TextureManager::PrepareTexture( VkCommandBuffer                        
         return EMPTY_TEXTURE_INDEX;
     }
 
+    const std::string filepathKey = filepath.empty() ? std::string() : filepath.string();
 
-    // TODO: check if texture exists by filepath, then return ready-to-use index
+    // reuse an already-uploaded texture with the same source file
+    if( !filepathKey.empty() )
+    {
+        const auto it = filepathToTextureIndex.find( filepathKey );
+        if( it != filepathToTextureIndex.end() && textures[ it->second ].image != VK_NULL_HANDLE )
+        {
+            textureRefCount[ it->second ]++;
+            return it->second;
+        }
+    }
 
 
     if( targetSlot == textures.end() )
@@ -662,6 +685,12 @@ uint32_t TextureManager::PrepareTexture( VkCommandBuffer                        
         highestUsedTextureIndex = textureIndex;
     }
 
+    textureRefCount[ textureIndex ] = 1;
+    if( !filepathKey.empty() )
+    {
+        filepathToTextureIndex[ filepathKey ] = textureIndex;
+    }
+
     return textureIndex;
 }
 
@@ -696,10 +725,28 @@ void TextureManager::DestroyMaterialTextures( uint32_t frameIndex, const Materia
 {
     for( auto t : material.textures.indices )
     {
-        if( t != EMPTY_TEXTURE_INDEX )
+        if( t == EMPTY_TEXTURE_INDEX )
         {
-            AddToBeDestroyed( frameIndex, textures[ t ] );
+            continue;
         }
+
+        assert( t < textureRefCount.size() );
+
+        if( textureRefCount[ t ] > 1 )
+        {
+            textureRefCount[ t ]--;
+            continue;
+        }
+
+        textureRefCount[ t ] = 0;
+
+        const std::string filepathKey = textures[ t ].filepath.string();
+        if( !filepathKey.empty() )
+        {
+            filepathToTextureIndex.erase( filepathKey );
+        }
+
+        AddToBeDestroyed( frameIndex, textures[ t ] );
     }
 }
 
