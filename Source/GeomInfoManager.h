@@ -141,6 +141,9 @@ private:
 
     uint32_t mappedBufferRegionsCount[ MAX_FRAMES_IN_FLIGHT ]{}; // optimization
 
+    // per frame-in-flight: static groups are already present in the device-local buffer
+    bool staticGroupsCopied[ MAX_FRAMES_IN_FLIGHT ]{};
+
     rgl::subspan_incremental< ShGeometryInstance >& AccessGeometryInstanceGroup(
         uint32_t frameIndex, VertexCollectorFilterTypeFlags flagsForGroup );
 };
