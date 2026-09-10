@@ -286,6 +286,7 @@ bool RTGL1::Scene::InsertLightInfo( bool isStatic, const GenericLightPtr& light 
         std::visit(
             [ this ]( auto&& specific ) { return this->staticLights.push_back( *specific ); },
             light );
+        staticLightsVersion++;
         return true;
     }
     else
@@ -303,6 +304,7 @@ void RTGL1::Scene::NewScene( VkCommandBuffer           cmd,
     staticUniqueIDs.clear();
     staticMeshNames.clear();
     staticLights.clear();
+    staticLightsVersion++;
 
     textureManager.FreeAllImportedMaterials( frameIndex );
 
@@ -339,21 +341,47 @@ std::optional< uint64_t > RTGL1::Scene::TryGetVolumetricLight(
 {
     auto lightstyles = std::span( params.pLightstyleValues, params.lightstyleValuesCount );
 
-    if( auto best = LightManager::TryGetVolumetricLight( staticLights, lightstyles ) )
+    uint64_t stylesHash = 0xcbf29ce484222325ull;
+    for( float s : lightstyles )
     {
-        return best;
+        uint32_t bits;
+        std::memcpy( &bits, &s, sizeof( bits ) );
+        stylesHash = ( stylesHash ^ bits ) * 0x100000001b3ull;
     }
 
-    // if nothing, just try find sun
-    for( const GenericLight& var : staticLights )
+    if( volumetricLightCacheResultValid && volumetricLightCacheLightsVersion == staticLightsVersion &&
+        volumetricLightCacheStylesHash == stylesHash )
     {
-        if( auto sun = std::get_if< RgDirectionalLightUploadInfo >( &var ) )
+        return volumetricLightCacheIdValid ? std::optional< uint64_t >( volumetricLightCacheId )
+                                           : std::nullopt;
+    }
+
+    std::optional< uint64_t > result;
+
+    if( auto best = LightManager::TryGetVolumetricLight( staticLights, lightstyles ) )
+    {
+        result = best;
+    }
+    else
+    {
+        // if nothing, just try find sun
+        for( const GenericLight& var : staticLights )
         {
-            return sun->uniqueID;
+            if( auto sun = std::get_if< RgDirectionalLightUploadInfo >( &var ) )
+            {
+                result = sun->uniqueID;
+                break;
+            }
         }
     }
 
-    return std::nullopt;
+    volumetricLightCacheResultValid   = true;
+    volumetricLightCacheLightsVersion = staticLightsVersion;
+    volumetricLightCacheStylesHash    = stylesHash;
+    volumetricLightCacheIdValid       = result.has_value();
+    volumetricLightCacheId            = result.value_or( 0 );
+
+    return result;
 }
 
 bool RTGL1::Scene::StaticMeshExists( const RgMeshInfo& mesh ) const

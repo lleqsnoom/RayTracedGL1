@@ -36,6 +36,8 @@
 namespace RTGL1
 {
 
+constexpr uint32_t MAX_CUBEMAP_COUNT = 32;
+
 class CubemapManager
 {
 public:
@@ -83,7 +85,12 @@ private:
     std::shared_ptr< CubemapUploader >    cubemapUploader;
 
     std::unordered_map< std::string, Texture > cubemaps;
+    // stable descriptor slot per cubemap name, independent of map iteration order
+    std::unordered_map< std::string, uint32_t > cubemapSlotIndex;
+    bool                                        cubemapSlotUsed[ MAX_CUBEMAP_COUNT ] = {};
     std::vector< Texture >                     cubemapsToDestroy[ MAX_FRAMES_IN_FLIGHT ];
+
+    uint32_t AcquireCubemapSlot();
 };
 
 }
