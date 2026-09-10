@@ -29,8 +29,6 @@
 namespace
 {
 
-constexpr uint32_t MAX_CUBEMAP_COUNT = 32;
-
 template< typename T >
 constexpr const T* DefaultIfNull( const T* pData, const T* pDefault )
 {
@@ -293,7 +291,9 @@ bool RTGL1::CubemapManager::TryCreateCubemap( VkCommandBuffer              cmd,
         .filepath      = {},
     };
 
-    auto [ iter, insertednew ] = cubemaps.insert( { std::string( info.pTextureName ), txd } );
+    const std::string cubemapName = info.pTextureName;
+
+    auto [ iter, insertednew ] = cubemaps.insert( { cubemapName, txd } );
 
     if( !insertednew )
     {
@@ -302,6 +302,10 @@ bool RTGL1::CubemapManager::TryCreateCubemap( VkCommandBuffer              cmd,
         // destroy old, overwrite with new
         AddForDeletion( frameIndex, existing );
         existing = txd;
+    }
+    else
+    {
+        cubemapSlotIndex[ cubemapName ] = AcquireCubemapSlot();
     }
 
     return true;
@@ -333,9 +337,32 @@ bool RTGL1::CubemapManager::TryDestroyCubemap( uint32_t frameIndex, const char* 
     }
 
     AddForDeletion( frameIndex, it->second );
+
+    const auto slotIt = cubemapSlotIndex.find( it->first );
+    if( slotIt != cubemapSlotIndex.end() )
+    {
+        cubemapSlotUsed[ slotIt->second ] = false;
+        cubemapSlotIndex.erase( slotIt );
+    }
+
     cubemaps.erase( it );
 
     return true;
+}
+
+uint32_t RTGL1::CubemapManager::AcquireCubemapSlot()
+{
+    for( uint32_t i = 0; i < MAX_CUBEMAP_COUNT; i++ )
+    {
+        if( !cubemapSlotUsed[ i ] )
+        {
+            cubemapSlotUsed[ i ] = true;
+            return i;
+        }
+    }
+
+    debug::Error( "Reached cubemap descriptor slot limit: {}", MAX_CUBEMAP_COUNT );
+    return 0;
 }
 
 VkDescriptorSetLayout RTGL1::CubemapManager::GetDescSetLayout() const
@@ -364,27 +391,37 @@ void RTGL1::CubemapManager::PrepareForFrame( uint32_t frameIndex )
 
 void RTGL1::CubemapManager::SubmitDescriptors( uint32_t frameIndex )
 {
-    // update desc set with current values
-    uint32_t iter = 0;
+    // update desc set with current values, using each cubemap's stable slot
+    bool slotWritten[ MAX_CUBEMAP_COUNT ] = {};
+
     for( const auto& [ name, cubetxd ] : cubemaps )
     {
+        const auto slotIt = cubemapSlotIndex.find( name );
+        if( slotIt == cubemapSlotIndex.end() )
+        {
+            continue;
+        }
+
+        const uint32_t slot = slotIt->second;
+        slotWritten[ slot ] = true;
+
         if( cubetxd.image != VK_NULL_HANDLE )
         {
-            cubemapDesc->UpdateTextureDesc( frameIndex, iter, cubetxd.view, cubetxd.samplerHandle );
+            cubemapDesc->UpdateTextureDesc( frameIndex, slot, cubetxd.view, cubetxd.samplerHandle );
         }
         else
         {
             // reset descriptor to empty texture
-            cubemapDesc->ResetTextureDesc( frameIndex, iter );
+            cubemapDesc->ResetTextureDesc( frameIndex, slot );
         }
-
-        iter++;
     }
 
-    while( iter < MAX_CUBEMAP_COUNT )
+    for( uint32_t i = 0; i < MAX_CUBEMAP_COUNT; i++ )
     {
-        cubemapDesc->ResetTextureDesc( frameIndex, iter );
-        iter++;
+        if( !slotWritten[ i ] )
+        {
+            cubemapDesc->ResetTextureDesc( frameIndex, i );
+        }
     }
 
     cubemapDesc->FlushDescWrites();
@@ -400,18 +437,10 @@ uint32_t RTGL1::CubemapManager::TryGetDescriptorIndex( const char* pTextureName 
     // TODO: TextureDescriptors should return an index on creation,
     //       now, iter must be the same as in SubmitDescriptors
 
-    uint32_t iter = 0;
-    for( const auto& [ name, cubetxd ] : cubemaps )
+    const auto it = cubemapSlotIndex.find( pTextureName );
+    if( it != cubemapSlotIndex.end() )
     {
-        if( cubetxd.view != VK_NULL_HANDLE )
-        {
-            if( name == pTextureName )
-            {
-                return iter;
-            }
-        }
-
-        iter++;
+        return it->second;
     }
 
     debug::Error( "Can't find cubemap with name: {}", Utils::SafeCstr( pTextureName ) );
