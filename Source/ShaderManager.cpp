@@ -139,7 +139,7 @@ void ShaderManager::LoadShaderModules()
         VkShaderModule m = LoadModuleFromFile( path.c_str() );
         SET_DEBUG_NAME( device, m, VK_OBJECT_TYPE_SHADER_MODULE, s.name.data() );
 
-        modules[ s.name ] = { m, s.stage };
+        modules[ std::string( s.name ) ] = { m, s.stage };
     }
 }
 

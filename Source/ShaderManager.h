@@ -75,7 +75,7 @@ private:
     VkDevice              device;
     std::filesystem::path shaderFolderPath;
 
-    rgl::unordered_map< std::filesystem::path, ShaderModule > modules;
+    rgl::string_map< ShaderModule > modules;
 
     std::list< std::weak_ptr< IShaderDependency > > subscribers;
 };
