@@ -51,6 +51,11 @@ public:
 
     bool IsValid( const VkAccelerationStructureBuildSizesInfoKHR& buildSizes ) const;
 
+    bool            IsBuildSizesCached( uint64_t signature ) const;
+    const VkAccelerationStructureBuildSizesInfoKHR& GetCachedBuildSizes() const;
+    void            SetCachedBuildSizes( uint64_t                                      signature,
+                                         const VkAccelerationStructureBuildSizesInfoKHR& sizes );
+
 protected:
     virtual void        CreateAS( VkDeviceSize size ) = 0;
     virtual const char* GetBufferDebugName() const    = 0;
@@ -59,6 +64,10 @@ private:
     void CreateBuffer( const std::shared_ptr< MemoryAllocator >& allocator, VkDeviceSize size );
 
     VkDeviceAddress GetASAddress( VkAccelerationStructureKHR as ) const;
+
+private:
+    uint64_t                                 cachedBuildSizesSignature = 0;
+    VkAccelerationStructureBuildSizesInfoKHR cachedBuildSizes{};
 
 protected:
     VkDevice                   device;

@@ -20,6 +20,16 @@
 
 #include "ASComponent.h"
 
+#include <algorithm>
+
+namespace
+{
+VkDeviceSize GetASBufferCapacity( VkDeviceSize requiredSize )
+{
+    return std::max( requiredSize, requiredSize + requiredSize / 4 + ( 1 << 16 ) );
+}
+}
+
 RTGL1::ASComponent::ASComponent( VkDevice _device, const char* _debugName )
     : device( _device ), as( VK_NULL_HANDLE ), debugName( _debugName )
 {
@@ -80,7 +90,7 @@ void RTGL1::ASComponent::RecreateIfNotValid(
         Destroy();
 
         // create
-        CreateBuffer( allocator, buildSizes.accelerationStructureSize );
+        CreateBuffer( allocator, GetASBufferCapacity( buildSizes.accelerationStructureSize ) );
         CreateAS( buildSizes.accelerationStructureSize );
     }
 }
@@ -122,6 +132,23 @@ void RTGL1::TLASComponent::CreateAS( VkDeviceSize size )
 bool RTGL1::ASComponent::IsValid( const VkAccelerationStructureBuildSizesInfoKHR& buildSizes ) const
 {
     return buffer.IsInitted() && buffer.GetSize() >= buildSizes.accelerationStructureSize;
+}
+
+bool RTGL1::ASComponent::IsBuildSizesCached( uint64_t signature ) const
+{
+    return signature != 0 && cachedBuildSizesSignature == signature;
+}
+
+const VkAccelerationStructureBuildSizesInfoKHR& RTGL1::ASComponent::GetCachedBuildSizes() const
+{
+    return cachedBuildSizes;
+}
+
+void RTGL1::ASComponent::SetCachedBuildSizes(
+    uint64_t signature, const VkAccelerationStructureBuildSizesInfoKHR& sizes )
+{
+    cachedBuildSizesSignature = signature;
+    cachedBuildSizes          = sizes;
 }
 
 VkAccelerationStructureKHR RTGL1::ASComponent::GetAS() const
