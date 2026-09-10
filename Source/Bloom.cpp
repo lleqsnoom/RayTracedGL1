@@ -229,7 +229,8 @@ RTGL1::FramebufferImageIndex RTGL1::Bloom::Apply( VkCommandBuffer       cmd,
         inputFramebuf,
         FB_IMAGE_INDEX_BLOOM_RESULT,
     };
-    framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+    framebuffers->BarrierMultiple(
+        cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
     vkCmdDispatch( cmd,
                    Utils::GetWorkGroupCount( width, COMPUTE_BLOOM_APPLY_GROUP_SIZE_X ),

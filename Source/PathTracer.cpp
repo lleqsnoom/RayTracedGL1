@@ -123,7 +123,7 @@ void PathTracer::TracePrimaryRays( const TraceParams& params )
         FI::FB_IMAGE_INDEX_THROUGHPUT,
         FI::FB_IMAGE_INDEX_PRIMARY_TO_REFL_REFR,
     };
-    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs );
+    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
     TraceRays( params.cmd, SBT_INDEX_RAYGEN_PRIMARY, params.width, params.height );
@@ -146,7 +146,7 @@ void PathTracer::TraceReflectionRefractionRays( const TraceParams& params )
         FI::FB_IMAGE_INDEX_THROUGHPUT,
         FI::FB_IMAGE_INDEX_PRIMARY_TO_REFL_REFR,
     };
-    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs );
+    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
     TraceRays( params.cmd, SBT_INDEX_RAYGEN_REFL_REFR, params.width, params.height );
@@ -165,7 +165,7 @@ void PathTracer::CalculateInitialReservoirs( const TraceParams& params )
         FI::FB_IMAGE_INDEX_NORMAL,
         FI::FB_IMAGE_INDEX_VIEW_DIRECTION,
     };
-    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs );
+    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
     TraceRays( params.cmd, SBT_INDEX_RAYGEN_INITIAL_RESERVOIRS, params.width, params.height );
@@ -187,7 +187,7 @@ void PathTracer::TraceDirectllumination( const TraceParams& params )
         FI::FB_IMAGE_INDEX_SURFACE_POSITION,
         FI::FB_IMAGE_INDEX_VIEW_DIRECTION,
     };
-    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs );
+    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
     TraceRays( params.cmd, SBT_INDEX_RAYGEN_DIRECT, params.width, params.height );
@@ -206,7 +206,7 @@ void PathTracer::CalculateGradientsSamples( const TraceParams& params )
         FI::FB_IMAGE_INDEX_RESERVOIRS,
         FI::FB_IMAGE_INDEX_VISIBILITY_BUFFER,
     };
-    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs );
+    params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
     uint32_t gradWidth =
@@ -227,7 +227,7 @@ void PathTracer::TraceIndirectllumination( const TraceParams& params )
         FI       fs[] = {
             FI::FB_IMAGE_INDEX_UNFILTERED_SPECULAR,
         };
-        params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs );
+        params.framebuffers->BarrierMultiple( params.cmd, params.frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
         TraceRays( params.cmd, SBT_INDEX_RAYGEN_INDIRECT_INIT, params.width, params.height );

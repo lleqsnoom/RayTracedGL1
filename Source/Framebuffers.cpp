@@ -232,10 +232,11 @@ bool RTGL1::Framebuffers::PrepareForSize( ResolutionState resolutionState )
 void RTGL1::Framebuffers::BarrierOne( VkCommandBuffer       cmd,
                                       uint32_t              frameIndex,
                                       FramebufferImageIndex framebufImageIndex,
-                                      BarrierType           barrierTypeFrom )
+                                      BarrierType           barrierTypeFrom,
+                                      BarrierType           barrierTypeTo )
 {
     FramebufferImageIndex fs[] = { framebufImageIndex };
-    BarrierMultiple( cmd, frameIndex, fs, barrierTypeFrom );
+    BarrierMultiple( cmd, frameIndex, fs, barrierTypeFrom, barrierTypeTo );
 }
 
 void Framebuffers::PresentToSwapchain( VkCommandBuffer                     cmd,

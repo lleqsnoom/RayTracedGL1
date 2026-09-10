@@ -65,14 +65,16 @@ public:
     void BarrierOne( VkCommandBuffer       cmd,
                      uint32_t              frameIndex,
                      FramebufferImageIndex framebufImageIndex,
-                     BarrierType           barrierTypeFrom = BarrierType::All );
+                     BarrierType           barrierTypeFrom = BarrierType::All,
+                     BarrierType           barrierTypeTo   = BarrierType::All );
 
     // Barrier framebuffer images for given frameIndex
     template< uint32_t BARRIER_COUNT >
     void                  BarrierMultiple( VkCommandBuffer cmd,
                                            uint32_t        frameIndex,
                                            const FramebufferImageIndex ( &framebufImageIndices )[ BARRIER_COUNT ],
-                                           BarrierType barrierTypeFrom = BarrierType::All );
+                                           BarrierType barrierTypeFrom = BarrierType::All,
+                                           BarrierType barrierTypeTo   = BarrierType::All );
 
     void PresentToSwapchain( VkCommandBuffer                     cmd,
                              uint32_t                            frameIndex,
@@ -150,7 +152,8 @@ inline void Framebuffers::BarrierMultiple(
     VkCommandBuffer cmd,
     uint32_t        frameIndex,
     const FramebufferImageIndex ( &framebufImageIndices )[ BARRIER_COUNT ],
-    BarrierType barrierTypeFrom )
+    BarrierType barrierTypeFrom,
+    BarrierType barrierTypeTo )
 {
     VkAccessFlags2KHR                                     srcAccess = 0, dstAccess = 0;
     VkPipelineStageFlags2KHR                              srcStage = 0, dstStage = 0;
@@ -183,16 +186,36 @@ inline void Framebuffers::BarrierMultiple(
         default: assert( 0 );
     }
 
-    // TODO: add barrierTypeTo, now it just includes all
-    dstAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR | VK_ACCESS_2_SHADER_READ_BIT_KHR |
-                VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR |
-                VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT_KHR | VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR |
-                VK_ACCESS_2_TRANSFER_READ_BIT_KHR;
-    dstStage =
-        VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT_KHR | VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR |
-        VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR | VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR;
+    switch( barrierTypeTo )
+    {
+        case BarrierType::All:
+            dstAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR | VK_ACCESS_2_SHADER_READ_BIT_KHR |
+                        VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR |
+                        VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT_KHR |
+                        VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR | VK_ACCESS_2_TRANSFER_READ_BIT_KHR;
+            dstStage  = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT_KHR |
+                       VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR |
+                       VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR |
+                       VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR;
+            break;
+        case BarrierType::Storage:
+            dstAccess = VK_ACCESS_2_SHADER_WRITE_BIT_KHR | VK_ACCESS_2_SHADER_READ_BIT_KHR;
+            dstStage  = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT_KHR |
+                       VK_PIPELINE_STAGE_2_RAY_TRACING_SHADER_BIT_KHR |
+                       VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT_KHR;
+            break;
+        case BarrierType::ColorAttachment:
+            dstAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR |
+                        VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT_KHR;
+            dstStage  = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT_KHR;
+            break;
+        case BarrierType::Transfer:
+            dstAccess = VK_ACCESS_2_TRANSFER_WRITE_BIT_KHR | VK_ACCESS_2_TRANSFER_READ_BIT_KHR;
+            dstStage  = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT_KHR;
+            break;
+        default: assert( 0 );
+    }
 
-    
     std::array< VkImageMemoryBarrier2KHR, BARRIER_COUNT > tmpBarriers;
     for( uint32_t i = 0; i < BARRIER_COUNT; i++ )
     {

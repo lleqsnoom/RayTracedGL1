@@ -122,7 +122,7 @@ void RTGL1::ImageComposition::ApplyTonemapping( VkCommandBuffer      cmd,
         FI::FB_IMAGE_INDEX_DEPTH_WORLD,     FI::FB_IMAGE_INDEX_ACID_FOG,
         FI::FB_IMAGE_INDEX_SCATTERING,
     };
-    framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+    framebuffers->BarrierMultiple( cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
     // bind pipeline
@@ -168,7 +168,7 @@ void RTGL1::ImageComposition::ProcessCheckerboard( VkCommandBuffer      cmd,
         FI::FB_IMAGE_INDEX_SCREEN_EMIS_R_T,
         FI::FB_IMAGE_INDEX_ACID_FOG_R_T,
     };
-    framebuffers->BarrierMultiple( cmd, frameIndex, fs );
+    framebuffers->BarrierMultiple( cmd, frameIndex, fs, Framebuffers::BarrierType::All, Framebuffers::BarrierType::Storage );
 
 
     // bind pipeline

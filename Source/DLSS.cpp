@@ -434,7 +434,8 @@ RTGL1::FramebufferImageIndex RTGL1::DLSS::Apply(
         FI::FB_IMAGE_INDEX_MOTION_DLSS,
         FI::FB_IMAGE_INDEX_DEPTH_NDC,
     };
-    framebuffers->BarrierMultiple( cmd, frameIndex, fs, Framebuffers::BarrierType::Storage );
+    framebuffers->BarrierMultiple(
+        cmd, frameIndex, fs, Framebuffers::BarrierType::Storage, Framebuffers::BarrierType::Storage );
 
 
     NVSDK_NGX_Coordinates sourceOffset = { 0, 0 };
