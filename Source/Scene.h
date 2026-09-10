@@ -117,6 +117,14 @@ private:
     rgl::unordered_set< uint64_t >    staticUniqueIDs;
     rgl::string_set staticMeshNames;
     std::vector< GenericLight >       staticLights;
+    uint32_t                          staticLightsVersion = 0;
+
+    // TryGetVolumetricLight cache: the result depends only on staticLights (version) and lightstyles
+    mutable bool     volumetricLightCacheResultValid = false;
+    mutable uint32_t volumetricLightCacheLightsVersion = 0;
+    mutable uint64_t volumetricLightCacheStylesHash    = 0;
+    mutable bool     volumetricLightCacheIdValid       = false;
+    mutable uint64_t volumetricLightCacheId            = 0;
 
     StaticGeometryToken  makingStatic{};
     DynamicGeometryToken makingDynamic{};
