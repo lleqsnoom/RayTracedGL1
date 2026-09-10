@@ -103,14 +103,15 @@ void main()
         return;
     }
 
-    const float motionZ = texelFetch( framebufMotion_Sampler, pix, 0 ).z;
+    const vec4  motion  = texelFetch( framebufMotion_Sampler, pix, 0 );
+    const float motionZ = motion.z;
     const float depth   = texelFetch( framebufDepthWorld_Sampler, pix, 0 ).r;
     const vec3  normal  = texelFetchNormal( pix );
 
     ivec2 pixPrev;
     vec2  subPix;
     {
-        const vec2 posPrev = getPrevScreenPos( framebufMotion_Sampler, pix );
+        const vec2 posPrev = getPrevScreenPos( motion.xy, pix );
 
         pixPrev = ivec2( floor( posPrev - 0.5 ) );
         subPix  = ( posPrev - 0.5 ) - floor( posPrev - 0.5 );
@@ -124,6 +125,8 @@ void main()
     float historyLen = 0;
     float weightSum  = 0;
 
+    const ivec3 chRenderArea = getCheckerboardedRenderArea( pix );
+
     // 2x2 tap bilinear interpolation
     for( int yy = 0; yy <= 1; yy++ )
     {
@@ -134,7 +137,7 @@ void main()
             float depthPrev  = texelFetch( framebufDepthWorld_Prev_Sampler, xy, 0 ).r;
             vec3  normalPrev = texelFetchNormal_Prev( xy );
 
-            if( testPixInRenderArea( xy, getCheckerboardedRenderArea( pix ) ) &&
+            if( testPixInRenderArea( xy, chRenderArea ) &&
                 testReprojectedDepth( depth, depthPrev, motionZ ) &&
                 testReprojectedNormal( normal, normalPrev ) )
             {
