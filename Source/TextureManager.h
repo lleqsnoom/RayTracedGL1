@@ -208,7 +208,9 @@ private:
     std::shared_ptr< TextureDescriptors > textureDesc;
     std::shared_ptr< TextureUploader >    textureUploader;
 
-    std::vector< Texture >               textures;
+    std::vector< Texture > textures;
+    // highest texture slot index ever used; slots above it are never referenced by materials
+    uint32_t               highestUsedTextureIndex = 0;
     // Textures are not destroyed immediately, but only when they are not in use anymore
     std::vector< Texture >               texturesToDestroy[ MAX_FRAMES_IN_FLIGHT ];
     std::vector< std::filesystem::path > texturesToReload;
