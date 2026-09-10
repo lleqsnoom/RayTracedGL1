@@ -624,6 +624,8 @@ GLOBAL_UNIFORM_STRUCT = [
     (TYPE_INT32,        4,      "instanceGeomCount",            align4(CONST["MAX_TOP_LEVEL_INSTANCE_COUNT"]) // 4),
     (TYPE_FLOAT32,     44,      "viewProjCubemap",              6),
     (TYPE_FLOAT32,     44,      "skyCubemapRotationTransform",  1),
+    (TYPE_FLOAT32,      4,      "waterExtinction",              1),
+    (TYPE_FLOAT32,      4,      "acidExtinction",               1),
 ]
 
 GEOM_INSTANCE_STRUCT = [

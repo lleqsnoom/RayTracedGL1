@@ -296,6 +296,8 @@ struct ShGlobalUniform
     ivec4 instanceGeomCount[12];
     mat4 viewProjCubemap[6];
     mat4 skyCubemapRotationTransform;
+    vec4 waterExtinction;
+    vec4 acidExtinction;
 };
 
 struct ShGeometryInstance
