@@ -20,6 +20,13 @@
 
 #include "AutoBuffer.h"
 
+#include <array>
+
+namespace
+{
+constexpr uint32_t MAX_COPY_REGIONS = 64;
+}
+
 RTGL1::AutoBuffer::AutoBuffer(std::shared_ptr<MemoryAllocator> _allocator)
 :
     allocator(std::move(_allocator)),
@@ -141,20 +148,22 @@ void RTGL1::AutoBuffer::CopyFromStaging(
         staging[frameIndex].GetBuffer(), deviceLocal.GetBuffer(),
         copyInfosCount, copyInfos);
 
-    VkBufferMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-    barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.buffer = deviceLocal.GetBuffer();
+    std::array<VkBufferMemoryBarrier, MAX_COPY_REGIONS> barriers{};
+    assert(copyInfosCount <= barriers.size());
 
     for (uint32_t i = 0; i < copyInfosCount; ++i)
     {
-        barrier.offset = copyInfos[i].dstOffset;
-        barrier.size = copyInfos[i].size;
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+        barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        barriers[i].srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        barriers[i].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barriers[i].buffer = deviceLocal.GetBuffer();
+        barriers[i].offset = copyInfos[i].dstOffset;
+        barriers[i].size = copyInfos[i].size;
     }
+
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, copyInfosCount, barriers.data(), 0, nullptr);
 }
 
 void *RTGL1::AutoBuffer::GetMapped(uint32_t frameIndex)

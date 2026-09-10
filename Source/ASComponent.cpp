@@ -20,6 +20,16 @@
 
 #include "ASComponent.h"
 
+#include <algorithm>
+
+namespace
+{
+VkDeviceSize GetASBufferCapacity(VkDeviceSize requiredSize)
+{
+    return std::max(requiredSize, requiredSize + requiredSize / 4 + (1 << 16));
+}
+}
+
 RTGL1::ASComponent::ASComponent(VkDevice _device, const char *_debugName)
 :
     device(_device),
@@ -67,19 +77,24 @@ void RTGL1::ASComponent::Destroy()
         svkDestroyAccelerationStructureKHR(device, as, nullptr);
         as = VK_NULL_HANDLE;
     }
+
+    asAddress = 0;
 }
 
-void RTGL1::ASComponent::RecreateIfNotValid(const VkAccelerationStructureBuildSizesInfoKHR &buildSizes, const std::shared_ptr<MemoryAllocator> &allocator)
+bool RTGL1::ASComponent::RecreateIfNotValid(const VkAccelerationStructureBuildSizesInfoKHR &buildSizes, const std::shared_ptr<MemoryAllocator> &allocator)
 {
-    if (!IsValid(buildSizes))
+    if (IsValid(buildSizes))
     {
-        // destroy
-        Destroy();
-
-        // create
-        CreateBuffer(allocator, buildSizes.accelerationStructureSize);
-        CreateAS(buildSizes.accelerationStructureSize);
+        return false;
     }
+
+    // destroy
+    Destroy();
+
+    // create
+    CreateBuffer(allocator, GetASBufferCapacity(buildSizes.accelerationStructureSize));
+    CreateAS(buildSizes.accelerationStructureSize);
+    return true;
 }
 
 void RTGL1::BLASComponent::CreateAS(VkDeviceSize size)
@@ -119,6 +134,22 @@ bool RTGL1::ASComponent::IsValid(const VkAccelerationStructureBuildSizesInfoKHR 
     return buffer.IsInitted() && buffer.GetSize() >= buildSizes.accelerationStructureSize;
 }
 
+bool RTGL1::ASComponent::IsBuildSizesCached(uint64_t signature) const
+{
+    return signature != 0 && cachedBuildSizesSignature == signature;
+}
+
+const VkAccelerationStructureBuildSizesInfoKHR &RTGL1::ASComponent::GetCachedBuildSizes() const
+{
+    return cachedBuildSizes;
+}
+
+void RTGL1::ASComponent::SetCachedBuildSizes(uint64_t signature, const VkAccelerationStructureBuildSizesInfoKHR &sizes)
+{
+    cachedBuildSizesSignature = signature;
+    cachedBuildSizes = sizes;
+}
+
 VkAccelerationStructureKHR RTGL1::ASComponent::GetAS() const
 {
     return as;
@@ -127,7 +158,13 @@ VkAccelerationStructureKHR RTGL1::ASComponent::GetAS() const
 VkDeviceAddress RTGL1::ASComponent::GetASAddress() const
 {
     assert(buffer.IsInitted());
-    return GetASAddress(as);
+
+    if (asAddress == 0)
+    {
+        asAddress = GetASAddress(as);
+    }
+
+    return asAddress;
 }
 
 VkDeviceAddress RTGL1::ASComponent::GetASAddress(VkAccelerationStructureKHR as) const

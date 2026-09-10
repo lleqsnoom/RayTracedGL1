@@ -67,7 +67,9 @@ private:
     };
 
 private:
-    VkCommandBuffer StartCmd(uint32_t frameIndex, AllocatedCmds &cmds, VkQueue queue);
+    VkCommandBuffer StartCmd(uint32_t frameIndex, AllocatedCmds &cmds);
+
+    VkQueue GetQueueForCmd(VkCommandBuffer cmd) const;
 
 private:
     VkDevice device;
@@ -82,7 +84,6 @@ private:
     AllocatedCmds transferCmds[MAX_FRAMES_IN_FLIGHT];
 
     std::weak_ptr<Queues> queues;
-    rgl::unordered_map<VkCommandBuffer, VkQueue> cmdQueues[MAX_FRAMES_IN_FLIGHT];
 };
 
 }
